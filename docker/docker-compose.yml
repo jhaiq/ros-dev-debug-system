@@ -1,0 +1,42 @@
+version: '3.8'
+
+services:
+  ros-dev-debug:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+    ports:
+      - "4000:4000"
+    environment:
+      - NODE_ENV=production
+      - PORT=4000
+      - ROS_MASTER_URI=http://localhost:11311
+      - ROSBRIDGE_URL=ws://rosbridge:9090
+    depends_on:
+      - rosbridge
+    networks:
+      - ros-network
+
+  rosbridge:
+    image: ros:noetic-ros-base
+    command: roslaunch rosbridge_server rosbridge_websocket.launch
+    ports:
+      - "9090:9090"
+    environment:
+      - ROS_MASTER_URI=http://localhost:11311
+    networks:
+      - ros-network
+
+  # 可选：rosapi 用于获取 ROS 系统信息
+  rosapi:
+    image: ros:noetic-ros-base
+    command: rosrun rosapi rosapi_node.py
+    environment:
+      - ROS_MASTER_URI=http://localhost:11311
+      - ROS_HOSTNAME=rosapi
+    networks:
+      - ros-network
+
+networks:
+  ros-network:
+    driver: bridge
