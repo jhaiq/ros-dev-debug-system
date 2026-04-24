@@ -3,7 +3,7 @@ import { BrowserRouter, Routes, Route, Link, useLocation } from 'react-router-do
 import {
   LayoutDashboard, Radio, Wrench, Settings, FileText, GitBranch,
   BarChart3, Image, Box, Network, Gamepad2, FolderOpen,
-  Map, Cloud, Radar, Stethoscope
+  Map, Cloud, Radar, Stethoscope, Clock, Shield, Activity
 } from 'lucide-react'
 import { useROS } from './hooks/useROS'
 import StatusPage from './pages/StatusPage'
@@ -25,6 +25,9 @@ import MapViewerPage from './pages/MapViewerPage'
 import PointCloudPage from './pages/PointCloudPage'
 import LaserScanPage from './pages/LaserScanPage'
 import TFDiagnosticsPage from './pages/TFDiagnosticsPage'
+import TracePage from './pages/TracePage'
+import LatencyPage from './pages/LatencyPage'
+import BottleneckPage from './pages/BottleneckPage'
 
 type NavGroup = {
   label: string
@@ -69,6 +72,14 @@ const navGroups: NavGroup[] = [
       { path: '/bag', label: 'Bag 管理', icon: <FolderOpen size={18} /> },
       { path: '/tf-diagnostics', label: 'TF 诊断', icon: <Stethoscope size={18} /> },
       { path: '/settings', label: '设置', icon: <Settings size={18} /> },
+    ],
+  },
+  {
+    label: '性能分析',
+    items: [
+      { path: '/trace', label: '调用链', icon: <Clock size={18} /> },
+      { path: '/latency', label: '延迟监控', icon: <Activity size={18} /> },
+      { path: '/bottleneck', label: '瓶颈检测', icon: <Shield size={18} /> },
     ],
   },
 ]
@@ -140,6 +151,9 @@ function AppContent() {
           <Route path="/pointcloud" element={<PointCloudPage />} />
           <Route path="/laserscan" element={<LaserScanPage />} />
           <Route path="/tf-diagnostics" element={<TFDiagnosticsPage />} />
+          <Route path="/trace" element={<TracePage />} />
+          <Route path="/latency" element={<LatencyPage />} />
+          <Route path="/bottleneck" element={<BottleneckPage />} />
         </Routes>
       </div>
     </div>

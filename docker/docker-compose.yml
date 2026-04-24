@@ -27,6 +27,23 @@ services:
     networks:
       - ros-network
 
+  # Trace Proxy — 拦截 ROS 消息，注入 trace metadata，延迟统计
+  trace-proxy:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.proxy
+    ports:
+      - "9091:9091"
+      - "9092:9092"
+    environment:
+      - PROXY_PORT=9091
+      - API_PORT=9092
+      - ROSBRIDGE_URL=ws://rosbridge:9090
+    depends_on:
+      - rosbridge
+    networks:
+      - ros-network
+
   # 可选：rosapi 用于获取 ROS 系统信息
   rosapi:
     image: ros:noetic-ros-base

@@ -1,0 +1,12 @@
+FROM node:20-alpine
+
+WORKDIR /app
+
+COPY proxy/package.json proxy/package-lock.json ./
+RUN npm ci --production
+
+COPY proxy/src/ ./src/
+
+EXPOSE 9091 9092
+
+CMD ["node", "src/index.js"]
