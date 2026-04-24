@@ -3,7 +3,7 @@ import { BrowserRouter, Routes, Route, Link, useLocation } from 'react-router-do
 import {
   LayoutDashboard, Radio, Wrench, Settings, FileText, GitBranch,
   BarChart3, Image, Box, Network, Gamepad2, FolderOpen,
-  Map, Cloud, Radar, Stethoscope, Clock, Shield, Activity
+  Map, Cloud, Radar, Stethoscope, Clock, Shield, Activity, Brain
 } from 'lucide-react'
 import { useROS } from './hooks/useROS'
 import StatusPage from './pages/StatusPage'
@@ -28,6 +28,7 @@ import TFDiagnosticsPage from './pages/TFDiagnosticsPage'
 import TracePage from './pages/TracePage'
 import LatencyPage from './pages/LatencyPage'
 import BottleneckPage from './pages/BottleneckPage'
+import DiagnosticsPage from './pages/DiagnosticsPage'
 
 type NavGroup = {
   label: string
@@ -80,6 +81,7 @@ const navGroups: NavGroup[] = [
       { path: '/trace', label: '调用链', icon: <Clock size={18} /> },
       { path: '/latency', label: '延迟监控', icon: <Activity size={18} /> },
       { path: '/bottleneck', label: '瓶颈检测', icon: <Shield size={18} /> },
+      { path: '/diagnostics', label: 'AI 诊断', icon: <Brain size={18} /> },
     ],
   },
 ]
@@ -154,6 +156,7 @@ function AppContent() {
           <Route path="/trace" element={<TracePage />} />
           <Route path="/latency" element={<LatencyPage />} />
           <Route path="/bottleneck" element={<BottleneckPage />} />
+          <Route path="/diagnostics" element={<DiagnosticsPage />} />
         </Routes>
       </div>
     </div>

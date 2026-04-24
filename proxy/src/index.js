@@ -19,6 +19,22 @@ import { createServer } from 'http'
 import express from 'express'
 import cors from 'cors'
 import { v4 as uuidv4 } from 'uuid'
+import {
+  detectLatencyAnomalies,
+  detectFrequencyAnomalies,
+  detectLatencyTrend,
+  rootCauseAnalysis,
+  generateRecommendations,
+  generateHealthReport,
+} from './diagnostics.js'
+import {
+  detectLatencyAnomalies,
+  detectFrequencyAnomalies,
+  detectLatencyTrend,
+  rootCauseAnalysis,
+  generateRecommendations,
+  generateHealthReport,
+} from './diagnostics.js'
 
 // ─── 配置 ──────────────────────────────────────────────
 const CONFIG = {
@@ -130,6 +146,7 @@ class LatencyStats {
       msgsPerSec: elapsed > 0 ? s.count / elapsed : 0,
       avgSize: s.totalSize / s.count,
       lastSeen: s.lastSeen,
+      _recentLatencies: [...s.latencies],
     }
   }
 }
@@ -355,6 +372,58 @@ app.get('/api/stats', (req, res) => {
     topicsTracked: latencyStats.getAll().map(s => s.topic),
     latencySummary: latencyStats.getAll(),
   })
+})
+
+// ─── AI 诊断 API ───────────────────────────────────────
+
+// 异常检测
+app.get('/api/anomalies', (req, res) => {
+  const topicStats = latencyStats.getAll()
+  const anomalies = [
+    ...detectLatencyAnomalies(topicStats),
+    ...detectFrequencyAnomalies(topicStats),
+    ...detectLatencyTrend(topicStats),
+  ]
+  // Sort by severity
+  const severityOrder = { critical: 0, warning: 1, info: 2 }
+  anomalies.sort((a, b) => (severityOrder[a.severity] || 2) - (severityOrder[b.severity] || 2))
+  res.json({ anomalies, detectedAt: Date.now() })
+})
+
+// 根因分析
+app.get('/api/rootcauses', (req, res) => {
+  const bottlenecks = detectBottlenecks()
+  const topicStats = latencyStats.getAll()
+  const rootCauses = rootCauseAnalysis(bottlenecks, topicStats)
+  res.json({ rootCauses, detectedAt: Date.now() })
+})
+
+// 配置优化建议
+app.get('/api/recommendations', (req, res) => {
+  const topicStats = latencyStats.getAll()
+  const bottlenecks = detectBottlenecks()
+  const anomalies = [
+    ...detectLatencyAnomalies(topicStats),
+    ...detectFrequencyAnomalies(topicStats),
+    ...detectLatencyTrend(topicStats),
+  ]
+  const recommendations = generateRecommendations(topicStats, bottlenecks, anomalies)
+  res.json({ recommendations, generatedAt: Date.now() })
+})
+
+// 健康诊断报告
+app.get('/api/diagnostics', (req, res) => {
+  const topicStats = latencyStats.getAll()
+  const bottlenecks = detectBottlenecks()
+  const anomalies = [
+    ...detectLatencyAnomalies(topicStats),
+    ...detectFrequencyAnomalies(topicStats),
+    ...detectLatencyTrend(topicStats),
+  ]
+  const recommendations = generateRecommendations(topicStats, bottlenecks, anomalies)
+  const rootCauses = rootCauseAnalysis(bottlenecks, topicStats)
+  const report = generateHealthReport(topicStats, bottlenecks, anomalies, recommendations, rootCauses)
+  res.json(report)
 })
 
 const apiServer = createServer(app)
