@@ -1,149 +1,130 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { useROS } from '../hooks/useROS'
 import ROSLIB from 'roslib'
 
-interface TFNode {
-  frame_id: string
-  child_frame_id: string
-  children?: TFNode[]
+interface TFEdge {
+  parent: string
+  child: string
 }
 
 export default function TFPage() {
   const { ros, connected } = useROS()
-  const [tfTree, setTfTree] = useState<TFNode[]>([])
-  const [expandedFrames, setExpandedFrames] = useState<Set<string>>(new Set(['world', 'map', 'odom']))
+  const [edges, setEdges] = useState<TFEdge[]>([])
+  const [expanded, setExpanded] = useState<Set<string>>(new Set())
+  const [search, setSearch] = useState('')
 
-  const fetchTF = () => {
+  const fetchTF = useCallback(() => {
     if (!ros || !connected) return
+    // Subscribe to /tf and /tf_static to build the tree
+    const tfTopic = new ROSLIB.Topic({ ros, name: '/tf', messageType: 'tf2_msgs/TFMessage', throttle_rate: 500 })
+    const tfStatic = new ROSLIB.Topic({ ros, name: '/tf_static', messageType: 'tf2_msgs/TFMessage', throttle_rate: 500 })
 
-    const getFrames = new ROSLIB.Service({
-      ros,
-      name: '/rosapi/get_frames',
-      serviceType: 'rosapi/GetFrames'
-    })
-
-    getFrames.call({}, (result: any) => {
-      const frames = result.frames || []
-      
-      // 构建树形结构
-      const frameMap: Record<string, TFNode> = {}
-      const rootNodes: TFNode[] = []
-
-      frames.forEach((frame: any) => {
-        const parentId = frame.parent || 'world'
-        const childId = frame.child
-
-        if (!frameMap[parentId]) {
-          frameMap[parentId] = { frame_id: parentId, child_frame_id: parentId, children: [] }
-        }
-        if (!frameMap[childId]) {
-          frameMap[childId] = { frame_id: childId, child_frame_id: childId, children: [] }
-        }
-
-        frameMap[parentId].children?.push(frameMap[childId])
-      })
-
-      // 找到根节点
-      const allChildren = new Set(frames.map((f: any) => f.child))
-      const roots = frames.filter((f: any) => !allChildren.has(f.parent))
-      
-      setTfTree(roots.map((r: any) => frameMap[r.parent] || frameMap[r.child]))
-    })
-  }
-
-  const toggleFrame = (frameId: string) => {
-    const newExpanded = new Set(expandedFrames)
-    if (newExpanded.has(frameId)) {
-      newExpanded.delete(frameId)
-    } else {
-      newExpanded.add(frameId)
+    const handleTF = (msg: any) => {
+      if (msg.transforms) {
+        const newEdges: TFEdge[] = msg.transforms.map((t: any) => ({
+          parent: t.header.frame_id,
+          child: t.child_frame_id
+        }))
+        setEdges(prev => {
+          const merged = [...prev, ...newEdges]
+          // Deduplicate
+          const seen = new Set<string>()
+          return merged.filter(e => {
+            const key = `${e.parent}/${e.child}`
+            if (seen.has(key)) return false
+            seen.add(key)
+            return true
+          })
+        })
+      }
     }
-    setExpandedFrames(newExpanded)
+
+    tfTopic.subscribe(handleTF)
+    tfStatic.subscribe(handleTF)
+    return () => { tfTopic.unsubscribe(); tfStatic.unsubscribe() }
+  }, [ros, connected])
+
+  useEffect(() => {
+    if (connected) {
+      const cleanup = fetchTF()
+      return cleanup
+    }
+  }, [connected, fetchTF])
+
+  // Build tree
+  const buildTree = () => {
+    const childrenMap: Record<string, string[]> = {}
+    const allParents = new Set<string>()
+    const allChildren = new Set<string>()
+
+    edges.forEach(e => {
+      if (!childrenMap[e.parent]) childrenMap[e.parent] = []
+      childrenMap[e.parent].push(e.child)
+      allParents.add(e.parent)
+      allChildren.add(e.child)
+    })
+
+    const roots = [...allParents].filter(p => !allChildren.has(p))
+    return { roots, childrenMap, frames: [...new Set([...allParents, ...allChildren])] }
   }
 
-  const TFNodeView = ({ node, depth = 0 }: { node: TFNode, depth?: number }) => {
-    const isExpanded = expandedFrames.has(node.frame_id)
-    const hasChildren = node.children && node.children.length > 0
+  const { roots, childrenMap, frames } = buildTree()
+
+  const TFNodeView = ({ frame, depth = 0 }: { frame: string; depth: number }) => {
+    const children = childrenMap[frame] || []
+    const isExpanded = expanded.has(frame)
+    const hasChildren = children.length > 0
+
+    if (search && !frame.toLowerCase().includes(search.toLowerCase()) &&
+        !children.some(c => c.toLowerCase().includes(search.toLowerCase()))) {
+      return null
+    }
 
     return (
-      <div style={{ marginLeft: depth * 24 }}>
-        <div
-          className="flex items-center gap-2 py-2 cursor-pointer hover:bg-gray-50 rounded"
-          onClick={() => hasChildren && toggleFrame(node.frame_id)}
-        >
+      <div style={{ marginLeft: depth * 20 }}>
+        <div className="flex items-center gap-2 py-1 px-2 rounded hover:bg-gray-50 cursor-pointer"
+          onClick={() => hasChildren && setExpanded(prev => {
+            const next = new Set(prev)
+            isExpanded ? next.delete(frame) : next.add(frame)
+            return next
+          })}>
           {hasChildren ? (
-            <span className="text-gray-500">{isExpanded ? '📂' : '📁'}</span>
-          ) : (
-            <span className="text-gray-300">📄</span>
-          )}
-          <span className="font-mono text-sm">{node.frame_id}</span>
-          {hasChildren && (
-            <span className="text-xs text-gray-400">({node.children?.length} 个子坐标系)</span>
-          )}
+            <span className="text-gray-500 w-4">{isExpanded ? '▾' : '▸'}</span>
+          ) : <span className="w-4" />}
+          <span className="font-mono text-sm">{frame}</span>
         </div>
-        {hasChildren && isExpanded && (
-          <div>
-            {node.children?.map((child, idx) => (
-              <TFNodeView key={idx} node={child} depth={depth + 1} />
-            ))}
-          </div>
-        )}
+        {hasChildren && isExpanded && children.map((child, i) => (
+          <TFNodeView key={i} frame={child} depth={depth + 1} />
+        ))}
       </div>
     )
   }
 
-  useEffect(() => {
-    if (connected) {
-      fetchTF()
-    }
-  }, [connected])
-
   return (
     <div className="p-6">
-      <div className="flex justify-between items-center mb-6">
-        <h1 className="text-2xl font-bold">TF 树可视化</h1>
-        <button
-          onClick={fetchTF}
-          disabled={!connected}
-          className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 disabled:bg-gray-400"
-        >
-          刷新
-        </button>
+      <div className="flex justify-between items-center mb-4">
+        <h1 className="text-2xl font-bold">🌳 TF 树</h1>
+        <span className="text-sm text-gray-500">{frames.length} frames</span>
       </div>
 
-      {!connected ? (
-        <div className="text-center py-12 text-gray-500">
-          请先连接 ROS
-        </div>
-      ) : tfTree.length === 0 ? (
-        <div className="text-center py-12 text-gray-500">
-          暂无 TF 数据
-        </div>
+      <input value={search} onChange={e => setSearch(e.target.value)}
+        placeholder="搜索 frame..." className="w-full px-3 py-2 border rounded mb-4" />
+
+      {frames.length === 0 ? (
+        <div className="text-center py-12 text-gray-400">暂无 TF 数据</div>
       ) : (
-        <div className="bg-white rounded-lg shadow p-6">
-          <div className="mb-4 text-sm text-gray-600">
-            点击文件夹图标展开/收起子坐标系
-          </div>
-          <div className="space-y-2">
-            {tfTree.map((node, idx) => (
-              <TFNodeView key={idx} node={node} />
-            ))}
-          </div>
+        <div className="bg-white rounded-lg shadow p-4 max-h-[70vh] overflow-y-auto">
+          {roots.map((root, i) => <TFNodeView key={i} frame={root} depth={0} />)}
         </div>
       )}
 
-      {/* TF 说明 */}
-      <div className="mt-6 bg-blue-50 rounded-lg p-4">
-        <h3 className="font-semibold mb-2">📖 关于 TF</h3>
-        <p className="text-sm text-gray-700">
-          TF (Transform) 是 ROS 中用于管理坐标系变换的系统。它允许你在不同坐标系之间转换点和向量，
-          例如从激光雷达坐标系转换到机器人基座坐标系。常见的坐标系包括：
-        </p>
-        <ul className="mt-2 text-sm text-gray-700 list-disc list-inside">
-          <li><strong>world/map</strong> - 世界/地图坐标系（固定）</li>
-          <li><strong>odom</strong> - 里程计坐标系（连续但会漂移）</li>
-          <li><strong>base_link</strong> - 机器人基座坐标系</li>
-          <li><strong>laser/camera</strong> - 传感器坐标系</li>
+      <div className="mt-4 bg-blue-50 rounded p-4 text-sm text-gray-700">
+        <p><strong>TF (Transform)</strong> 管理坐标系变换。常见坐标系：</p>
+        <ul className="list-disc list-inside mt-1">
+          <li><strong>world/map</strong> - 世界/地图（固定）</li>
+          <li><strong>odom</strong> - 里程计（连续但漂移）</li>
+          <li><strong>base_link</strong> - 机器人基座</li>
+          <li><strong>laser/camera</strong> - 传感器</li>
         </ul>
       </div>
     </div>
