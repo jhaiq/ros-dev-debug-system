@@ -53,6 +53,9 @@ const latencyStats = new LatencyStats(CONFIG.LATENCY_WINDOW)
 // 按 topic 分组的 FIFO 队列：避免线性扫描 + 保证 publish/subscribe 正确配对
 const pendingPublish = new Map()  // topic → [{ trace_id, payload, ts }]
 
+// topic → type 映射（从 advertise 消息收集）
+const topicTypeMap = new Map()  // topic → msg_type
+
 // 定时清理超过 30 秒未匹配的 pending（防止内存泄漏）
 const PENDING_TIMEOUT_MS = 30000
 const cleanupInterval = setInterval(() => {
@@ -76,10 +79,10 @@ let upstreamWs = null
 let upstreamConnected = false
 
 function connectUpstream() {
-  console.log(`🔌 连接 rosbridge: ${CONFIG.ROSBridge_URL}`)
+  console.log(`🔌 连接 rosbridge: ${CONFIG.ROSBRIDGE_URL}`)
   
   try {
-    upstreamWs = new WebSocket(CONFIG.ROSBridge_URL)
+    upstreamWs = new WebSocket(CONFIG.ROSBRIDGE_URL)
   } catch (err) {
     console.error(`❌ 上游连接失败: ${err.message}`)
     setTimeout(connectUpstream, CONFIG.RECONNECT_INTERVAL)
@@ -102,6 +105,11 @@ function connectUpstream() {
     const msg = parseJson(data)
     if (!msg) return
 
+    // 跟踪 advertise 消息：建立 topic → type 映射
+    if (msg.op === 'advertise') {
+      topicTypeMap.set(msg.topic, msg.type)
+    }
+
     // 拦截 publish 消息：记录用于后续延迟计算（按 topic 分组队列）
     if (msg.op === 'publish') {
       const traceId = uuidv4()
@@ -111,8 +119,8 @@ function connectUpstream() {
       pendingPublish.get(topic).push({
         trace_id: traceId,
         topic: topic,
-        node: msg.node || 'unknown',
-        msg_type: msg.msg_type || '',
+        node: msg.id || 'unknown',
+        msg_type: topicTypeMap.get(topic) || msg.type || msg.msg_type || '',
         publish_ts: publishTs,
         payload: msg.msg,
         msg_size: Buffer.byteLength(JSON.stringify(msg.msg)),
@@ -185,6 +193,11 @@ downstreamWss.on('connection', (ws) => {
   ws.on('message', (data) => {
     const msg = parseJson(data)
     if (!msg) return
+
+    // 拦截 advertise：建立 topic → type 映射（下游侧）
+    if (msg.op === 'advertise') {
+      topicTypeMap.set(msg.topic, msg.type)
+    }
 
     // 前端订阅 trace 推送
     if (msg.action === 'subscribe_traces') {
@@ -356,6 +369,54 @@ apiServer.on('upgrade', (req, socket, head) => {
   }
 })
 
+// 启动代理服务器（前端 WebSocket 连接）
+const proxyServer = createServer()
+const proxyWss = new WebSocketServer({ server: proxyServer })
+
+proxyWss.on('connection', (ws) => {
+  downstreamClients.add(ws)
+  console.log(`📱 前端连接 (${downstreamClients.size} 在线)`)
+
+  ws.on('message', (data) => {
+    const msg = parseJson(data)
+    if (!msg) return
+    // 拦截 advertise：建立 topic → type 映射
+    if (msg.op === 'advertise') {
+      topicTypeMap.set(msg.topic, msg.type)
+    }
+    if (msg.action === 'subscribe_traces') {
+      traceSubscribers.add(ws)
+      return
+    }
+    if (msg.action === 'unsubscribe_traces') {
+      traceSubscribers.delete(ws)
+      return
+    }
+    if (upstreamConnected && upstreamWs.readyState === WebSocket.OPEN) {
+      upstreamWs.send(data)
+    }
+  })
+
+  ws.on('close', () => {
+    downstreamClients.delete(ws)
+    traceSubscribers.delete(ws)
+    console.log(`📱 前端断开 (${downstreamClients.size} 在线)`)
+  })
+})
+
+// 升级 HTTP 请求到 WebSocket（API 服务器上的 /ws/traces）
+apiServer.on('upgrade', (req, socket, head) => {
+  if (req.url === '/ws/traces') {
+    downstreamWss.handleUpgrade(req, socket, head, (ws) => {
+      downstreamWss.emit('connection', ws, req)
+    })
+  }
+})
+
+proxyServer.listen(CONFIG.PROXY_PORT, () => {
+  console.log(`📡 Proxy WebSocket 运行在 ws://localhost:${CONFIG.PROXY_PORT}`)
+})
+
 apiServer.listen(CONFIG.API_PORT, () => {
   console.log(`📡 Trace API 运行在 http://localhost:${CONFIG.API_PORT}`)
   console.log(`🔌 WebSocket: ws://localhost:${CONFIG.API_PORT}/ws/traces`)
@@ -372,7 +433,7 @@ function getSuggestion(ruleName, stat) {
   return _getSuggestion(ruleName, stat)
 }
 console.log(`🚀 ROS Trace Proxy 启动中...`)
-console.log(`   上游: ${CONFIG.ROSBridge_URL}`)
+console.log(`   上游: ${CONFIG.ROSBRIDGE_URL}`)
 console.log(`   代理端口: ${CONFIG.PROXY_PORT}`)
 console.log(`   API 端口: ${CONFIG.API_PORT}`)
 console.log(`   Trace 缓冲区: ${CONFIG.TRACE_BUFFER_SIZE} 条`)
