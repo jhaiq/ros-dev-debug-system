@@ -4,7 +4,7 @@ import {
   ChevronDown, ChevronRight, Zap, Activity, Brain, CheckCircle
 } from 'lucide-react'
 
-const PROXY_API = 'http://localhost:9092'
+const PROXY_API = import.meta.env.VITE_PROXY_API || 'http://localhost:9092'
 
 function severityColor(severity: string): string {
   switch (severity) {

@@ -1,8 +1,8 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { Play, Pause, Search, Filter, Download, Clock, ChevronDown, ChevronRight, RefreshCw } from 'lucide-react'
 
-const PROXY_API = 'http://localhost:9092'
-const PROXY_WS = 'ws://localhost:9092'
+const PROXY_API = import.meta.env.VITE_PROXY_API || 'http://localhost:9092'
+const PROXY_WS = import.meta.env.VITE_PROXY_WS || 'ws://localhost:9092'
 
 type Trace = {
   trace_id: string

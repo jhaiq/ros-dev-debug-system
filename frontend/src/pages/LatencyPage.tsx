@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useMemo } from 'react'
 import { BarChart, Clock, RefreshCw, TrendingUp, ArrowDown } from 'lucide-react'
 
-const PROXY_API = 'http://localhost:9092'
+const PROXY_API = import.meta.env.VITE_PROXY_API || 'http://localhost:9092'
 
 type TopicStats = {
   topic: string
@@ -44,7 +44,11 @@ function formatNumber(n: number): string {
   return n.toFixed(1)
 }
 
-/** 简易热力图（纯 CSS 实现，无需额外依赖） */
+/**
+ * 简易热力图（纯 CSS 实现，无需额外依赖）
+ * ⚠️ TODO: 当前使用 p50 基线 + 随机抖动模拟历史数据。
+ * 应由后端按时间窗口提供真实的延迟历史数据后替换。
+ */
 function HeatmapChart({ topics, timeWindows }: { topics: TopicStats[], timeWindows: number }) {
   const columns = Math.min(timeWindows, 30)
   const colors = ['bg-green-500', 'bg-green-400', 'bg-yellow-500', 'bg-yellow-400', 'bg-orange-500', 'bg-orange-400', 'bg-red-500', 'bg-red-600']
@@ -66,7 +70,7 @@ function HeatmapChart({ topics, timeWindows }: { topics: TopicStats[], timeWindo
             <div className="w-24 text-xs font-mono text-gray-300 truncate pr-2" title={t.topic}>{t.topic}</div>
             <div className="flex-1 flex gap-px">
               {Array.from({ length: columns }, (_, i) => {
-                // 模拟热力值（实际应由后端按时间窗口提供）
+                // TODO: 替换为后端真实的历史延迟数据
                 const baseLatency = t.p50
                 const jitter = Math.random() * baseLatency * 0.5
                 const value = baseLatency + jitter

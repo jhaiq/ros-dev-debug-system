@@ -8,6 +8,7 @@ const __dirname = dirname(__filename)
 
 const app = express()
 const PORT = process.env.PORT || 4000
+const PROXY_API = process.env.PROXY_API || 'http://localhost:9092'
 
 app.use(cors())
 app.use(express.json())
@@ -17,12 +18,20 @@ app.get('/health', (req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() })
 })
 
-// API 路由
-app.get('/api/status', (req, res) => {
+// API 路由 — 动态查询 proxy 状态获取真实的 rosConnected
+app.get('/api/status', async (req, res) => {
+  let rosConnected = false
+  try {
+    const proxyRes = await fetch(`${PROXY_API}/health`, { signal: AbortSignal.timeout(2000) })
+    const proxyData = await proxyRes.json()
+    rosConnected = proxyData.upstream === true
+  } catch {
+    // proxy 不可达，默认为 false
+  }
   res.json({
     name: 'ROS Dev Debug System',
     version: '1.0.0',
-    rosConnected: false
+    rosConnected
   })
 })
 

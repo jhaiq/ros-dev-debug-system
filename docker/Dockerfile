@@ -25,6 +25,10 @@ WORKDIR /app
 COPY --from=builder /app/backend ./backend
 COPY --from=builder /app/frontend/dist ./frontend/dist
 
+# 安全：非 root 用户运行
+RUN addgroup -S appgroup && adduser -S appuser -G appgroup && chown -R appuser:appgroup /app
+USER appuser
+
 WORKDIR /app/backend
 
 ENV NODE_ENV=production

@@ -7,6 +7,10 @@ RUN npm ci --production
 
 COPY proxy/src/ ./src/
 
+# 安全：非 root 用户运行
+RUN addgroup -S appgroup && adduser -S appuser -G appgroup && chown -R appuser:appgroup /app
+USER appuser
+
 EXPOSE 9091 9092
 
 CMD ["node", "src/index.js"]

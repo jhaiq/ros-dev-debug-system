@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { AlertTriangle, RefreshCw, Shield, Activity, ThumbsUp, ChevronDown, ChevronRight } from 'lucide-react'
 
-const PROXY_API = 'http://localhost:9092'
+const PROXY_API = import.meta.env.VITE_PROXY_API || 'http://localhost:9092'
 
 type Bottleneck = {
   topic: string
