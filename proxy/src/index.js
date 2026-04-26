@@ -194,8 +194,8 @@ downstreamWss.on('connection', (ws) => {
     const msg = parseJson(data)
     if (!msg) return
 
-    // 拦截 advertise：建立 topic → type 映射（下游侧）
-    if (msg.op === 'advertise') {
+    // 拦截 advertise 和 subscribe：建立 topic → type 映射（下游侧）
+    if ((msg.op === 'advertise' || msg.op === 'subscribe') && msg.type) {
       topicTypeMap.set(msg.topic, msg.type)
     }
 
@@ -404,15 +404,7 @@ proxyWss.on('connection', (ws) => {
   })
 })
 
-// 升级 HTTP 请求到 WebSocket（API 服务器上的 /ws/traces）
-apiServer.on('upgrade', (req, socket, head) => {
-  if (req.url === '/ws/traces') {
-    downstreamWss.handleUpgrade(req, socket, head, (ws) => {
-      downstreamWss.emit('connection', ws, req)
-    })
-  }
-})
-
+// proxyServer listens for plain WS passthrough (no upgrade needed — handled by proxyWss above)
 proxyServer.listen(CONFIG.PROXY_PORT, () => {
   console.log(`📡 Proxy WebSocket 运行在 ws://localhost:${CONFIG.PROXY_PORT}`)
 })
