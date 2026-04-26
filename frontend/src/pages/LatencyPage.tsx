@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useMemo } from 'react'
 import { BarChart, Clock, RefreshCw, TrendingUp, ArrowDown } from 'lucide-react'
+import { latencyColor as latencyTextColor, latencyBg, formatBytes } from '../utils/formatting'
 
 const PROXY_API = import.meta.env.VITE_PROXY_API || 'http://localhost:9092'
 
@@ -19,25 +20,7 @@ type TopicStats = {
   msgTypes?: string[]
 }
 
-function latencyColor(ms: number): string {
-  if (ms < 10) return 'bg-green-500'
-  if (ms < 50) return 'bg-yellow-500'
-  if (ms < 200) return 'bg-orange-500'
-  return 'bg-red-500'
-}
-
-function latencyTextColor(ms: number): string {
-  if (ms < 10) return 'text-green-400'
-  if (ms < 50) return 'text-yellow-400'
-  if (ms < 200) return 'text-orange-400'
-  return 'text-red-400'
-}
-
-function formatBytes(bytes: number): string {
-  if (bytes < 1024) return `${bytes} B`
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`
-  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
-}
+const latencyColor = latencyBg // bg colors for bars
 
 function formatNumber(n: number): string {
   if (n >= 1000) return `${(n / 1000).toFixed(1)}k`

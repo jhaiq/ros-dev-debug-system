@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { Play, Pause, Search, Filter, Download, Clock, ChevronDown, ChevronRight, RefreshCw } from 'lucide-react'
+import { latencyColor, latencyBg, latencyBarWidth, formatBytes, formatTime } from '../utils/formatting'
 
 const PROXY_API = import.meta.env.VITE_PROXY_API || 'http://localhost:9092'
 const PROXY_WS = import.meta.env.VITE_PROXY_WS || 'ws://localhost:9092'
@@ -14,35 +15,6 @@ type Trace = {
   latency_ms: number
   hop_count: number
   msg_size_bytes: number
-}
-
-function latencyColor(ms: number): string {
-  if (ms < 10) return 'text-green-400'
-  if (ms < 50) return 'text-yellow-400'
-  if (ms < 200) return 'text-orange-400'
-  return 'text-red-400'
-}
-
-function latencyBg(ms: number): string {
-  if (ms < 10) return 'bg-green-500'
-  if (ms < 50) return 'bg-yellow-500'
-  if (ms < 200) return 'bg-orange-500'
-  return 'bg-red-500'
-}
-
-function latencyBarWidth(ms: number, max: number): string {
-  const pct = Math.min(100, (ms / Math.max(max, 1)) * 100)
-  return `${pct}%`
-}
-
-function formatBytes(bytes: number): string {
-  if (bytes < 1024) return `${bytes} B`
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`
-  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
-}
-
-function formatTime(ts: number): string {
-  return new Date(ts).toLocaleTimeString('zh-CN', { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit', fractionalSecondDigits: 3 } as Intl.DateTimeFormatOptions)
 }
 
 export default function TracePage() {

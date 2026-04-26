@@ -48,6 +48,8 @@ services:
   rosapi:
     image: ros:noetic-ros-base
     command: rosrun rosapi rosapi_node.py
+    ports:
+      - "9093:9093"
     environment:
       - ROS_MASTER_URI=http://localhost:11311
       - ROS_HOSTNAME=rosapi
