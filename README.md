@@ -80,7 +80,10 @@
 ```bash
 # 启动 rosbridge (ROS 2 Humble)
 source /opt/ros/humble/setup.bash
-ros2 launch rosbridge_suite rosbridge_websocket_launch.xml
+ros2 run rosbridge_server rosbridge_websocket \
+  --ros-args -p default_call_service_timeout:=5.0 \
+  -p call_services_in_new_thread:=True \
+  -p send_action_goals_in_new_thread:=True
 
 # 安装依赖
 cd frontend && npm install
@@ -96,6 +99,12 @@ cd frontend && npm run dev
 
 # 终端 3: Trace Proxy (可选，用于 Phase 5 性能分析)
 cd proxy && npm start
+
+##
+source /opt/ros/humble/setup.bash
+ros2 run rosapi rosapi_node
+
+
 ```
 
 ### Docker 一键部署
