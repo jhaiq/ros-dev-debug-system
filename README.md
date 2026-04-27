@@ -72,14 +72,15 @@
 ### 前置要求
 
 - Node.js 18+
-- ROS (Noetic/Humble)
+- ROS 2 Humble
 - rosbridge_suite
 
 ### 本地开发
 
 ```bash
-# 启动 rosbridge
-roslaunch rosbridge_server rosbridge_websocket.launch
+# 启动 rosbridge (ROS 2 Humble)
+source /opt/ros/humble/setup.bash
+ros2 launch rosbridge_suite rosbridge_websocket_launch.xml
 
 # 安装依赖
 cd frontend && npm install
