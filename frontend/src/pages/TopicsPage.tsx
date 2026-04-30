@@ -8,8 +8,8 @@ interface TopicInfo {
 }
 
 export default function TopicsPage() {
-  const { ros, connected } = useROS()
-  const [topics, setTopics] = useState<TopicInfo[]>([])
+  const { ros, connected, cache, setCache } = useROS()
+  const [topics, setTopics] = useState<TopicInfo[]>(() => cache.topics.length > 0 ? cache.topics : [])
   const [search, setSearch] = useState('')
   const [selectedTopic, setSelectedTopic] = useState<TopicInfo | null>(null)
   const [messages, setMessages] = useState<any[]>([])
@@ -26,6 +26,7 @@ export default function TopicsPage() {
         const types: string[] = typesResult.types || []
         const info: TopicInfo[] = names.map((name, i) => ({ name, type: types[i] || 'unknown' }))
         setTopics(info)
+        setCache(prev => ({ ...prev, topics: info.slice(0, 200), topicsFetchedAt: Date.now() }))
       })
     })
   }, [ros, connected])

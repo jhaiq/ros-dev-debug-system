@@ -1,13 +1,14 @@
 import { useState, useEffect, useCallback } from 'react'
+import { Link } from 'react-router-dom'
 import { useROS } from '../hooks/useROS'
 import ROSLIB from 'roslib'
 
 export default function StatusPage() {
-  const { ros, connected, url } = useROS()
-  const [nodeCount, setNodeCount] = useState(0)
-  const [topicCount, setTopicCount] = useState(0)
-  const [serviceCount, setServiceCount] = useState(0)
-  const [paramCount, setParamCount] = useState(0)
+  const { ros, connected, url, cache } = useROS()
+  const [nodeCount, setNodeCount] = useState(cache.nodes.length || 0)
+  const [topicCount, setTopicCount] = useState(cache.topics.length || 0)
+  const [serviceCount, setServiceCount] = useState(cache.services.length || 0)
+  const [paramCount, setParamCount] = useState(cache.params.length || 0)
   const [batteryLevel, setBatteryLevel] = useState<number | null>(null)
 
   const fetchSystemInfo = useCallback(() => {
@@ -28,6 +29,14 @@ export default function StatusPage() {
   useEffect(() => {
     if (connected) fetchSystemInfo()
   }, [connected, fetchSystemInfo])
+
+  // 从缓存同步计数（跨路由共享数据）
+  useEffect(() => {
+    if (cache.nodesFetchedAt) setNodeCount(cache.nodes.length)
+    if (cache.topicsFetchedAt) setTopicCount(cache.topics.length)
+    if (cache.servicesFetchedAt) setServiceCount(cache.services.length)
+    if (cache.paramsFetchedAt) setParamCount(cache.params.length)
+  }, [cache])
 
   useEffect(() => {
     if (!ros || !connected) { setBatteryLevel(null); return }
@@ -66,28 +75,44 @@ export default function StatusPage() {
         </div>
 
         {/* 节点 */}
-        <div className="bg-white rounded-lg shadow p-6">
+        <Link to="/nodes" className="bg-white rounded-lg shadow p-6 hover:shadow-lg transition-shadow cursor-pointer">
           <h3 className="text-sm font-medium text-gray-500 mb-1">📦 节点</h3>
           <div className="text-2xl font-bold">{nodeCount}</div>
-        </div>
+          {cache.nodes.length > 0 && (
+            <div className="mt-2 space-y-0.5">
+              {cache.nodes.slice(0, 4).map(n => (
+                <div key={n.name} className="text-xs text-gray-400 truncate">{n.name}</div>
+              ))}
+              {cache.nodes.length > 4 && <div className="text-xs text-blue-500">+{cache.nodes.length - 4} more</div>}
+            </div>
+          )}
+        </Link>
 
         {/* 话题 */}
-        <div className="bg-white rounded-lg shadow p-6">
+        <Link to="/topics" className="bg-white rounded-lg shadow p-6 hover:shadow-lg transition-shadow cursor-pointer">
           <h3 className="text-sm font-medium text-gray-500 mb-1">📡 话题</h3>
           <div className="text-2xl font-bold">{topicCount}</div>
-        </div>
+          {cache.topics.length > 0 && (
+            <div className="mt-2 space-y-0.5">
+              {cache.topics.slice(0, 4).map(t => (
+                <div key={t.name} className="text-xs text-gray-400 truncate">{t.name}</div>
+              ))}
+              {cache.topics.length > 4 && <div className="text-xs text-blue-500">+{cache.topics.length - 4} more</div>}
+            </div>
+          )}
+        </Link>
 
         {/* 服务 */}
-        <div className="bg-white rounded-lg shadow p-6">
+        <Link to="/services" className="bg-white rounded-lg shadow p-6 hover:shadow-lg transition-shadow cursor-pointer">
           <h3 className="text-sm font-medium text-gray-500 mb-1">🔧 服务</h3>
           <div className="text-2xl font-bold">{serviceCount}</div>
-        </div>
+        </Link>
 
         {/* 参数 */}
-        <div className="bg-white rounded-lg shadow p-6">
+        <Link to="/params" className="bg-white rounded-lg shadow p-6 hover:shadow-lg transition-shadow cursor-pointer">
           <h3 className="text-sm font-medium text-gray-500 mb-1">⚙️ 参数</h3>
           <div className="text-2xl font-bold">{paramCount}</div>
-        </div>
+        </Link>
       </div>
     </div>
   )

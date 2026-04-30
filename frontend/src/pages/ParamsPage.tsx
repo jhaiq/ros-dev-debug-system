@@ -9,48 +9,61 @@ interface ParamNode {
   isLeaf: boolean
 }
 
+// 参数树构建器（纯函数，可在 useState 初始化时使用）
+function buildParamTree(names: string[]): ParamNode[] {
+  const tree: ParamNode[] = []
+  const nodeMap: Record<string, ParamNode> = {}
+  names.forEach(name => {
+    const parts = name.split('/').filter(Boolean)
+    let currentPath = ''
+    let currentLevel = tree
+    parts.forEach((part, idx) => {
+      currentPath += '/' + part
+      if (!nodeMap[currentPath]) {
+        const node: ParamNode = { name: part, isLeaf: idx === parts.length - 1, children: [] }
+        nodeMap[currentPath] = node
+        currentLevel.push(node)
+        currentLevel = node.children!
+      } else {
+        if (idx === parts.length - 1) nodeMap[currentPath].isLeaf = true
+        currentLevel = nodeMap[currentPath].children!
+      }
+    })
+  })
+  return tree
+}
+
 export default function ParamsPage() {
-  const { ros, connected } = useROS()
+  const { ros, connected, cache, setCache } = useROS()
   const [search, setSearch] = useState('')
-  const [params, setParams] = useState<ParamNode[]>([])
+  const [params, setParams] = useState<ParamNode[]>(() => {
+    if (cache.params.length > 0) return buildParamTree(cache.params)
+    return []
+  })
   const [selectedParam, setSelectedParam] = useState<string | null>(null)
   const [paramValue, setParamValue] = useState('')
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
 
   const fetchParams = useCallback(() => {
     if (!ros || !connected) return
-    // Use GetParamNames (the correct rosapi service)
     const getParamNames = new ROSLIB.Service({ ros, name: '/rosapi/get_param_names', serviceType: 'rosapi/GetParamNames' })
     getParamNames.callService(new ROSLIB.ServiceRequest({}), (result: any) => {
       const names: string[] = result.names || []
-      // Build tree
-      const tree: ParamNode[] = []
-      const nodeMap: Record<string, ParamNode> = {}
-      names.forEach(name => {
-        const parts = name.split('/').filter(Boolean)
-        let currentPath = ''
-        let currentLevel = tree
-        parts.forEach((part, idx) => {
-          currentPath += '/' + part
-          if (!nodeMap[currentPath]) {
-            const node: ParamNode = { name: part, isLeaf: idx === parts.length - 1, children: [] }
-            nodeMap[currentPath] = node
-            currentLevel.push(node)
-            currentLevel = node.children!
-          } else {
-            if (idx === parts.length - 1) nodeMap[currentPath].isLeaf = true
-            currentLevel = nodeMap[currentPath].children!
-          }
-        })
-      })
+      const tree = buildParamTree(names)
       setParams(tree)
+      setCache(prev => ({ ...prev, params: names, paramsFetchedAt: Date.now() }))
     })
-  }, [ros, connected])
+  }, [ros, connected, setCache])
 
   const getParam = (paramName: string) => {
     if (!ros || !connected) return
     const getParam = new ROSLIB.Service({ ros, name: '/rosapi/get_param', serviceType: 'rosapi/GetParam' })
-    getParam.callService(new ROSLIB.ServiceRequest({ name: paramName }), (result: any) => {
+    // rosapi 2.0.5 参数名格式兼容：
+    // 全局参数（如 /rosdistro）直接使用原名
+    // 节点参数使用 node_name:param_name 格式
+    const isGlobalParam = !paramName.includes(':')
+    const serviceParamName = isGlobalParam ? paramName : paramName
+    getParam.callService(new ROSLIB.ServiceRequest({ name: serviceParamName }), (result: any) => {
       try {
         const val = JSON.parse(result.value)
         setParamValue(JSON.stringify(val, null, 2))

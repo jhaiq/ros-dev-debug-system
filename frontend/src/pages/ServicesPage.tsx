@@ -8,8 +8,8 @@ interface ServiceInfo {
 }
 
 export default function ServicesPage() {
-  const { ros, connected } = useROS()
-  const [services, setServices] = useState<ServiceInfo[]>([])
+  const { ros, connected, cache, setCache } = useROS()
+  const [services, setServices] = useState<ServiceInfo[]>(() => cache.services.length > 0 ? cache.services : [])
   const [search, setSearch] = useState('')
   const [selectedService, setSelectedService] = useState<string | null>(null)
   const [requestText, setRequestText] = useState('{}')
@@ -24,7 +24,9 @@ export default function ServicesPage() {
       const names: string[] = r1.services || []
       getServiceTypes.callService(new ROSLIB.ServiceRequest({}), (r2: any) => {
         const types: string[] = r2.types || []
-        setServices(names.map((name, i) => ({ name, type: types[i] || 'unknown' })))
+        const info = names.map((name, i) => ({ name, type: types[i] || 'unknown' }))
+        setServices(info)
+        setCache(prev => ({ ...prev, services: info.slice(0, 200), servicesFetchedAt: Date.now() }))
       })
     })
   }

@@ -10,8 +10,8 @@ interface NodeInfo {
 }
 
 export default function NodesPage() {
-  const { ros, connected } = useROS()
-  const [nodes, setNodes] = useState<NodeInfo[]>([])
+  const { ros, connected, cache, setCache } = useROS()
+  const [nodes, setNodes] = useState<NodeInfo[]>(() => cache.nodes.length > 0 ? cache.nodes : [])
   const [loading, setLoading] = useState(false)
   const [search, setSearch] = useState('')
   const [selectedNode, setSelectedNode] = useState<string | null>(null)
@@ -36,7 +36,11 @@ export default function NodesPage() {
             services: r.services || []
           })
           pending--
-          if (pending === 0) { setNodes(details); setLoading(false) }
+          if (pending === 0) {
+            setNodes(details)
+            setCache(prev => ({ ...prev, nodes: details.slice(0, 50), nodesFetchedAt: Date.now() }))
+            setLoading(false)
+          }
         })
       })
     })

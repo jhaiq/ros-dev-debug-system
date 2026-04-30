@@ -5,7 +5,7 @@ import {
   BarChart3, Image, Box, Network, Gamepad2, FolderOpen,
   Map, Cloud, Radar, Stethoscope, Clock, Shield, Activity, Brain
 } from 'lucide-react'
-import { useROS } from './hooks/useROS'
+import { ROSProvider, useROS } from './hooks/useROS'
 import StatusPage from './pages/StatusPage'
 import DashboardPage from './pages/DashboardPage'
 import NodesPage from './pages/NodesPage'
@@ -166,7 +166,9 @@ function AppContent() {
 export default function App() {
   return (
     <BrowserRouter>
-      <AppContent />
+      <ROSProvider>
+        <AppContent />
+      </ROSProvider>
     </BrowserRouter>
   )
 }
