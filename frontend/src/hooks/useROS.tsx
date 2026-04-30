@@ -157,21 +157,14 @@ export function ROSProvider({ children, initialUrl }: { children: ReactNode; ini
     connect()
     return () => {
       autoReconnectRef.current = false
-      clearReconnectTimer()
-      reconnectAttemptsRef.current = 0
-      if (rosRef.current) {
-        try { rosRef.current.close() } catch {}
-        rosRef.current = null
-      }
-      setRos(null)
-      setConnected(false)
+      doCleanup()
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   // URL 变化时重连
   useEffect(() => {
-    if (rosRef.current && rosRef.current.isConnected) {
+    if (rosRef.current) {
       disconnect()
       setTimeout(() => connect(url), 300)
     }
@@ -184,8 +177,7 @@ export function ROSProvider({ children, initialUrl }: { children: ReactNode; ini
     const call = (name: string, type: string) => new Promise<any[]>((resolve) => {
       const svc = new ROSLIB.Service({ ros, name, serviceType: type })
       svc.callService(new ROSLIB.ServiceRequest({}),
-        (r: any) => resolve(r.names || r.nodes || r.topics || r.services || r.types || []),
-        () => resolve([])
+        (r: any) => resolve(r.names || r.nodes || r.topics || r.services || r.types || [])
       )
     })
 
@@ -224,7 +216,7 @@ export function useROS(): ROSContextValue {
 }
 
 /** 向后兼容：单组件独立连接（不推荐新项目使用） */
-export function useROSStandalone(initialUrl?: string) {
+export function useROSStandalone(_initialUrl?: string) {
   const { ros, connected, error, url, setUrl, connect, disconnect } = useROS()
   return { ros, connected, error, url, setUrl, connect, disconnect }
 }
