@@ -14,8 +14,7 @@ print('Tip: try "import rclpy; rclpy.init(); node = rclpy.create_node(\\'py_cons
 print('>>> ', end='', flush=True)
 `
 
-export function setupPyConsoleWebSocket(wss) {
-  wss.on('connection', (ws) => {
+export function handlePyConsoleConnection(ws) {
     const proc = spawn('python3', ['-i', '-q'], {
       env: { ...process.env, PYTHONUNBUFFERED: '1' },
       stdio: ['pipe', 'pipe', 'pipe'],
@@ -50,5 +49,4 @@ export function setupPyConsoleWebSocket(wss) {
     })
 
     send('status', 'connected')
-  })
 }

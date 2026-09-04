@@ -50,19 +50,11 @@ export default function TopicsPage() {
   const prevFieldValuesRef = useRef<Map<string, any>>(new Map())
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
-  const fetchTopics = useCallback(() => {
+  const fetchTopics = useCallback(async () => {
     if (!ros || !connected) return
-    const getTopics = new ROSLIB.Service({ ros, name: '/rosapi/topics', serviceType: 'rosapi/Topics' })
-    const getTopicTypes = new ROSLIB.Service({ ros, name: '/rosapi/topic_types', serviceType: 'rosapi/TopicTypes' })
-    getTopics.callService(new ROSLIB.ServiceRequest({}), (result: any) => {
-      const names: string[] = result.topics || []
-      getTopicTypes.callService(new ROSLIB.ServiceRequest({}), (typesResult: any) => {
-        const types: string[] = typesResult.types || []
-        const info: TopicInfo[] = names.map((name, i) => ({ name, type: types[i] || 'unknown' }))
-        setTopics(info)
-        setCache(prev => ({ ...prev, topics: info.slice(0, 200), topicsFetchedAt: Date.now() }))
-      })
-    })
+    const info: TopicInfo[] = await rosapi.topicTypes(ros)
+    setTopics(info)
+    setCache(prev => ({ ...prev, topics: info.slice(0, 200), topicsFetchedAt: Date.now() }))
   }, [ros, connected, setCache])
 
   const filtered = useMemo(() => topics.filter(t =>

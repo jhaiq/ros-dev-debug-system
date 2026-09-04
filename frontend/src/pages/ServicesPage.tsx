@@ -23,19 +23,11 @@ export default function ServicesPage() {
   const [response, setResponse] = useState<any>(null)
   const [loading, setLoading] = useState(false)
 
-  const fetchServices = () => {
+  const fetchServices = async () => {
     if (!ros || !connected) return
-    const getServices = new ROSLIB.Service({ ros, name: '/rosapi/services', serviceType: 'rosapi/Services' })
-    const getServiceTypes = new ROSLIB.Service({ ros, name: '/rosapi/service_types', serviceType: 'rosapi/ServiceTypes' })
-    getServices.callService(new ROSLIB.ServiceRequest({}), (r1: any) => {
-      const names: string[] = r1.services || []
-      getServiceTypes.callService(new ROSLIB.ServiceRequest({}), (r2: any) => {
-        const types: string[] = r2.types || []
-        const info = names.map((name, i) => ({ name, type: types[i] || 'unknown' }))
-        setServices(info)
-        setCache(prev => ({ ...prev, services: info.slice(0, 200), servicesFetchedAt: Date.now() }))
-      })
-    })
+    const info = await rosapi.services(ros)
+    setServices(info)
+    setCache(prev => ({ ...prev, services: info.slice(0, 200), servicesFetchedAt: Date.now() }))
   }
 
   /** 选中服务：加载 srv 请求定义生成结构化表单（rqt_service_caller 行为） */
@@ -46,9 +38,16 @@ export default function ServicesPage() {
     setReqTree([])
     setFormValue({})
     setRequestText('{}')
-    if (!ros || !connected || !svc.type || svc.type === 'unknown') { setMode('json'); return }
+    if (!ros || !connected) { setMode('json'); return }
     try {
-      const typedefs = await rosapi.serviceRequestDetails(ros, svc.type)
+      // 新版 rosapi 列表不带类型，单查补齐
+      let type = svc.type
+      if (!type) {
+        type = await rosapi.serviceType(ros, svc.name)
+        setServices(prev => prev.map(s => s.name === svc.name ? { ...s, type } : s))
+      }
+      if (!type) throw new Error('无法确定服务类型')
+      const typedefs = await rosapi.serviceRequestDetails(ros, type)
       if (!typedefs.length) throw new Error('无法获取请求定义')
       const tree = resolveFieldTree(typedefs[0].type, buildTypeDefRegistry(typedefs))
       const defaults = defaultMessageObject(tree)
@@ -56,6 +55,7 @@ export default function ServicesPage() {
       setFormValue(defaults)
       setRequestText(JSON.stringify(defaults, null, 2))
       setMode('form')
+      setSelectedService({ ...svc, type })
     } catch (e: any) {
       setDefError(`结构化编辑器不可用（${e.message}），已切换为 JSON 模式`)
       setMode('json')

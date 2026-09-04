@@ -9,8 +9,8 @@ import {
   startPlay, pausePlay, stopPlay, listPlays,
 } from './bag.js'
 import { getNodeTop } from './top.js'
-import { setupShellWebSocket } from './shell.js'
-import { setupPyConsoleWebSocket } from './pyConsole.js'
+import { handleShellConnection } from './shell.js'
+import { handlePyConsoleConnection } from './pyConsole.js'
 
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = dirname(__filename)
@@ -123,24 +123,18 @@ if (process.env.NODE_ENV === 'production') {
 
 const server = createServer(app)
 
-// --- WebSocket 服务 ---
-const wss = new WebSocketServer({ server, path: '/ws' })
-
+// --- WebSocket 服务：单实例，按路径分发 ---
+const wss = new WebSocketServer({ server })
 wss.on('connection', (ws, req) => {
-  const pathname = req.url || ''
-  if (pathname.startsWith('/ws/shell')) {
-    // 由 shell 子路由器处理
-  } else if (pathname.startsWith('/ws/pyconsole')) {
-    // 由 pyconsole 子路由器处理
+  const path = new URL(req.url || '/', 'http://localhost').pathname
+  if (path === '/ws/shell') {
+    handleShellConnection(ws)
+  } else if (path === '/ws/pyconsole') {
+    handlePyConsoleConnection(ws)
+  } else {
+    ws.close()
   }
 })
-
-// 使用子路径 WebSocket 服务器
-const shellWss = new WebSocketServer({ server, path: '/ws/shell' })
-setupShellWebSocket(shellWss)
-
-const pyWss = new WebSocketServer({ server, path: '/ws/pyconsole' })
-setupPyConsoleWebSocket(pyWss)
 
 server.listen(PORT, () => {
   console.log(`🚀 ROS Dev Debug Backend running on port ${PORT}`)

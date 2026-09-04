@@ -27,9 +27,36 @@ export function callRosapi<T = any>(
 
 export interface TopicType { name: string; type: string }
 
+/**
+ * 话题类型列表 — 兼容两种 rosapi：
+ * - 新版 (2.7.0+，Jazzy/Kilted apt)：/rosapi/topics 返回 {topics, types}（按索引对齐）
+ * - 旧版 (Humble 等)：/rosapi/topic_types 返回 {topic_types: [{name, type}]}
+ */
 export const rosapi = {
-  topicTypes: (ros: ROSLIB.Ros) =>
-    callRosapi<{ topic_types: TopicType[] }>(ros, 'topic_types').then(r => r.topic_types || []),
+  topicTypes: async (ros: ROSLIB.Ros): Promise<TopicType[]> => {
+    try {
+      const r = await callRosapi<{ topics?: string[]; types?: string[] }>(ros, 'topics')
+      if (r.topics) {
+        return r.topics.map((name, i) => ({ name, type: r.types?.[i] || '' }))
+      }
+    } catch { /* 走旧 API */ }
+    const old = await callRosapi<{ topic_types?: TopicType[] }>(ros, 'topic_types')
+    return old.topic_types || []
+  },
+  topicType: (ros: ROSLIB.Ros, topic: string) =>
+    callRosapi<{ type: string }>(ros, 'topic_type', { topic }).then(r => r.type || ''),
+  serviceType: (ros: ROSLIB.Ros, service: string) =>
+    callRosapi<{ type: string }>(ros, 'service_type', { service }).then(r => r.type || ''),
+  /** 服务列表 — 兼容新旧 rosapi（新：{services}；旧：{services}+/rosapi/service_types） */
+  services: async (ros: ROSLIB.Ros): Promise<TopicType[]> => {
+    const r = await callRosapi<{ services?: string[]; types?: string[] }>(ros, 'services')
+    const services = r.services || []
+    let types = r.types || []
+    if (services.length > 0 && types.length === 0) {
+      try { types = (await callRosapi<{ types?: string[] }>(ros, 'service_types')).types || [] } catch { /* 新版无此服务 */ }
+    }
+    return services.map((name, i) => ({ name, type: types[i] || '' }))
+  },
   topicsForType: (ros: ROSLIB.Ros, type: string) =>
     callRosapi<{ topics: string[] }>(ros, 'topics_for_type', { type }).then(r => r.topics || []),
   servicesForType: (ros: ROSLIB.Ros, type: string) =>

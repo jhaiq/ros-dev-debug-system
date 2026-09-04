@@ -6,6 +6,7 @@
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react'
 import { useROS } from '../hooks/useROS'
 import ROSLIB from 'roslib'
+import { rosapi } from '../lib/rosapi'
 
 interface GraphNode {
   id: string
@@ -40,16 +41,12 @@ export default function NodeGraphPage() {
   const fetchGraph = useCallback(() => {
     if (!ros || !connected) return
     const getNodes = new ROSLIB.Service({ ros, name: '/rosapi/nodes', serviceType: 'rosapi/Nodes' })
-    const getTopics = new ROSLIB.Service({ ros, name: '/rosapi/topics', serviceType: 'rosapi/Topics' })
-    const getTopicTypes = new ROSLIB.Service({ ros, name: '/rosapi/topic_types', serviceType: 'rosapi/TopicTypes' })
 
-    Promise.all([
-      new Promise<string[]>(r => getNodes.callService(new ROSLIB.ServiceRequest({}), (res: any) => r(res.nodes || []))),
-      new Promise<string[]>(r => getTopics.callService(new ROSLIB.ServiceRequest({}), (res: any) => r(res.topics || []))),
-      new Promise<string[]>(r => getTopicTypes.callService(new ROSLIB.ServiceRequest({}), (res: any) => r(res.types || []))),
-    ]).then(([nodeNames, topicNames, topicTypes]) => {
-      const topicMap = new Map<string, string>()
-      topicNames.forEach((t, i) => topicMap.set(t, topicTypes[i] || ''))
+    getNodes.callService(new ROSLIB.ServiceRequest({}), async (res: any) => {
+      const nodeNames: string[] = res.nodes || []
+      // 兼容新旧 rosapi 的话题类型接口
+      const topicNames = (await rosapi.topicTypes(ros).catch(() => [] as { name: string; type: string }[]))
+        .map(t => t.name)
       const graphNodes: GraphNode[] = nodeNames.map((name, i) => ({
         id: name, type: 'node', x: 100, y: i * 70 + 40, pubs: [], subs: [],
       }))

@@ -7,8 +7,7 @@ import * as pty from 'node-pty'
 
 const shells = new Map() // ws -> pty
 
-export function setupShellWebSocket(wss) {
-  wss.on('connection', (ws) => {
+export function handleShellConnection(ws) {
     // 默认启动 bash；如不可用则 sh
     const shell = process.platform === 'win32' ? 'powershell.exe' : 'bash'
     const ptyProcess = pty.spawn(shell, [], {
@@ -48,5 +47,4 @@ export function setupShellWebSocket(wss) {
 
     // 发送初始提示
     ws.send(`\r\n# rqt_shell 已连接 (${shell})\r\n`)
-  })
 }
