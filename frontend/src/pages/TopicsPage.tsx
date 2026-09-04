@@ -52,9 +52,13 @@ export default function TopicsPage() {
 
   const fetchTopics = useCallback(async () => {
     if (!ros || !connected) return
-    const info: TopicInfo[] = await rosapi.topicTypes(ros)
-    setTopics(info)
-    setCache(prev => ({ ...prev, topics: info.slice(0, 200), topicsFetchedAt: Date.now() }))
+    try {
+      const info: TopicInfo[] = await rosapi.topicTypes(ros)
+      setTopics(info)
+      setCache(prev => ({ ...prev, topics: info.slice(0, 200), topicsFetchedAt: Date.now() }))
+    } catch (e) {
+      console.warn('获取话题列表失败', e)
+    }
   }, [ros, connected, setCache])
 
   const filtered = useMemo(() => topics.filter(t =>

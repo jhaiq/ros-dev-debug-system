@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useROS } from '../hooks/useROS'
 import ROSLIB from 'roslib'
 import MessageFieldEditor from '../components/MessageFieldEditor'
@@ -22,16 +22,23 @@ export default function ServicesPage() {
   const [defError, setDefError] = useState<string | null>(null)
   const [response, setResponse] = useState<any>(null)
   const [loading, setLoading] = useState(false)
+  // 追踪最近一次选中，防止慢速类型查询的过期回调覆盖用户的新选择
+  const selectedReqRef = useRef<string | null>(null)
 
   const fetchServices = async () => {
     if (!ros || !connected) return
-    const info = await rosapi.services(ros)
-    setServices(info)
-    setCache(prev => ({ ...prev, services: info.slice(0, 200), servicesFetchedAt: Date.now() }))
+    try {
+      const info = await rosapi.services(ros)
+      setServices(info)
+      setCache(prev => ({ ...prev, services: info.slice(0, 200), servicesFetchedAt: Date.now() }))
+    } catch (e) {
+      console.warn('获取服务列表失败', e)
+    }
   }
 
   /** 选中服务：加载 srv 请求定义生成结构化表单（rqt_service_caller 行为） */
   const selectService = async (svc: ServiceInfo) => {
+    selectedReqRef.current = svc.name
     setSelectedService(svc)
     setResponse(null)
     setDefError(null)
@@ -48,6 +55,7 @@ export default function ServicesPage() {
       }
       if (!type) throw new Error('无法确定服务类型')
       const typedefs = await rosapi.serviceRequestDetails(ros, type)
+      if (selectedReqRef.current !== svc.name) return // 期间用户已切换服务
       if (!typedefs.length) throw new Error('无法获取请求定义')
       const tree = resolveFieldTree(typedefs[0].type, buildTypeDefRegistry(typedefs))
       const defaults = defaultMessageObject(tree)

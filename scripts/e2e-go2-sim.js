@@ -43,7 +43,7 @@ class RosBridge {
           if (msg.op === 'action_result') { const r = this.waiters.get(msg.id); this.waiters.delete(msg.id); r(msg) }
         }
         if (msg.op === 'status' && msg.level === 'error') {
-          for (const [, r] of this.waiters) { /* 广播错误不直接 reject */ }
+          // 广播错误不直接 reject，由各等待方超时处理
         }
       }
     })
@@ -63,15 +63,6 @@ class RosBridge {
   }
   advertise(topic, type) { this.send({ op: 'advertise', id: `adv-${++this.seq}`, topic, type }) }
   publish(topic, msg) { this.send({ op: 'publish', topic, msg }) }
-  waitFor(topic, predicate, timeoutMs = 10000) {
-    return new Promise((resolve, reject) => {
-      const timer = setTimeout(() => { cleanup(); reject(new Error(`${topic} 等待数据超时`)) }, timeoutMs)
-      const prev = this.subHandlers.get(topic)
-      const handler = (msg) => { if (!predicate || predicate(msg)) { cleanup(); resolve(msg) } }
-      const cleanup = () => { clearTimeout(timer); this.subHandlers.set(topic, prev || (() => {})) }
-      this.subHandlers.set(topic, handler)
-    })
-  }
   sendActionGoal(action, actionType, args, timeoutMs = 15000) {
     const id = `goal-${++this.seq}`
     return new Promise((resolve, reject) => {
@@ -113,12 +104,14 @@ async function main() {
 
   // 找到 JointTrajectoryController action（验证 /actions 与 /jtc 链路）
   let actionServers = []
+  let asCalled = false
   try {
     const asRes = await rb.callService('/rosapi/action_servers', 'rosapi_msgs/srv/GetActionServers')
     actionServers = asRes.action_servers || []
+    asCalled = true
   } catch (e) { /* 旧版 rosbridge 无此服务 */ }
   const followAction = actionServers.find(a => a.includes('follow_joint_trajectory'))
-  record('rosapi/action_servers', Array.isArray(actionServers), actionServers.join(', ') || '(空：仿真未启用 action)')
+  record('rosapi/action_servers', asCalled, actionServers.join(', ') || '(空：仿真未启用 action)')
 
   // ===== 2. 通过 rosbridge 发布 /cmd_vel（等价 /publish 页），观察里程计位移 =====
   // go2 行为控制：先调 robot_behavior_command 'walk' 让狗进入行走模式

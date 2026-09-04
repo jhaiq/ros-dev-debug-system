@@ -36,7 +36,8 @@ export const rosapi = {
   topicTypes: async (ros: ROSLIB.Ros): Promise<TopicType[]> => {
     try {
       const r = await callRosapi<{ topics?: string[]; types?: string[] }>(ros, 'topics')
-      if (r.topics) {
+      // 新版 rosapi：types 数组与 topics 按索引对齐；旧版返回 {topics} 无 types 字段 → 走旧接口
+      if (Array.isArray(r.topics) && Array.isArray(r.types) && r.types.length === r.topics.length) {
         return r.topics.map((name, i) => ({ name, type: r.types?.[i] || '' }))
       }
     } catch { /* 走旧 API */ }
