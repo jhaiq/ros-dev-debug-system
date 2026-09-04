@@ -3,7 +3,8 @@ import { BrowserRouter, Routes, Route, Link, useLocation } from 'react-router-do
 import {
   LayoutDashboard, Radio, Wrench, Settings, FileText, GitBranch,
   BarChart3, Image, Box, Network, Gamepad2, FolderOpen,
-  Map, Cloud, Radar, Stethoscope, Clock, Shield, Activity, Brain
+  Map, Cloud, Radar, Stethoscope, Clock, Shield, Activity, Brain,
+  Package, Send, Crosshair, HeartPulse, Cpu, TerminalSquare, Code2, LayoutGrid
 } from 'lucide-react'
 import { ROSProvider, useROS } from './hooks/useROS'
 import StatusPage from './pages/StatusPage'
@@ -11,6 +12,9 @@ import DashboardPage from './pages/DashboardPage'
 import NodesPage from './pages/NodesPage'
 import TopicsPage from './pages/TopicsPage'
 import ServicesPage from './pages/ServicesPage'
+import PublisherPage from './pages/PublisherPage'
+import ActionsPage from './pages/ActionsPage'
+import MsgTypesPage from './pages/MsgTypesPage'
 import ParamsPage from './pages/ParamsPage'
 import LogsPage from './pages/LogsPage'
 import TFPage from './pages/TFPage'
@@ -21,10 +25,17 @@ import TF3DPage from './pages/TF3DPage'
 import NodeGraphPage from './pages/NodeGraphPage'
 import ControlPage from './pages/ControlPage'
 import BagPage from './pages/BagPage'
+import TopPage from './pages/TopPage'
+import ShellPage from './pages/ShellPage'
+import PyConsolePage from './pages/PyConsolePage'
+import WorkspacePage from './pages/WorkspacePage'
+import JtcPage from './pages/JtcPage'
+import RobotDashboardPage from './pages/RobotDashboardPage'
 import MapViewerPage from './pages/MapViewerPage'
 import PointCloudPage from './pages/PointCloudPage'
 import LaserScanPage from './pages/LaserScanPage'
 import TFDiagnosticsPage from './pages/TFDiagnosticsPage'
+import RobotMonitorPage from './pages/RobotMonitorPage'
 import TracePage from './pages/TracePage'
 import LatencyPage from './pages/LatencyPage'
 import BottleneckPage from './pages/BottleneckPage'
@@ -41,6 +52,7 @@ const navGroups: NavGroup[] = [
     items: [
       { path: '/', label: '机器人状态', icon: <Radio size={18} /> },
       { path: '/dashboard', label: '仪表盘', icon: <LayoutDashboard size={18} /> },
+      { path: '/workspace', label: '工作台', icon: <LayoutGrid size={18} /> },
     ],
   },
   {
@@ -49,6 +61,9 @@ const navGroups: NavGroup[] = [
       { path: '/nodes', label: '节点管理', icon: <Radio size={18} /> },
       { path: '/topics', label: '话题监控', icon: <Radio size={18} /> },
       { path: '/services', label: '服务调用', icon: <Wrench size={18} /> },
+      { path: '/publish', label: '消息发布器', icon: <Send size={18} /> },
+      { path: '/actions', label: 'Action 客户端', icon: <Crosshair size={18} /> },
+      { path: '/types', label: '类型浏览器', icon: <Package size={18} /> },
       { path: '/params', label: '参数服务器', icon: <Settings size={18} /> },
       { path: '/tf', label: 'TF 列表', icon: <GitBranch size={18} /> },
       { path: '/logs', label: '日志系统', icon: <FileText size={18} /> },
@@ -72,6 +87,12 @@ const navGroups: NavGroup[] = [
       { path: '/control', label: '机器人控制', icon: <Gamepad2 size={18} /> },
       { path: '/bag', label: 'Bag 管理', icon: <FolderOpen size={18} /> },
       { path: '/tf-diagnostics', label: 'TF 诊断', icon: <Stethoscope size={18} /> },
+      { path: '/robot-monitor', label: '诊断监视器', icon: <HeartPulse size={18} /> },
+      { path: '/jtc', label: '关节轨迹控制', icon: <Crosshair size={18} /> },
+      { path: '/robot-dashboard', label: '机器人仪表盘', icon: <LayoutDashboard size={18} /> },
+      { path: '/top', label: '节点资源', icon: <Cpu size={18} /> },
+      { path: '/shell', label: '远程终端', icon: <TerminalSquare size={18} /> },
+      { path: '/pyconsole', label: 'Python 控制台', icon: <Code2 size={18} /> },
       { path: '/settings', label: '设置', icon: <Settings size={18} /> },
     ],
   },
@@ -136,9 +157,13 @@ function AppContent() {
         <Routes>
           <Route path="/" element={<StatusPage />} />
           <Route path="/dashboard" element={<DashboardPage />} />
+          <Route path="/workspace" element={<WorkspacePage />} />
           <Route path="/nodes" element={<NodesPage />} />
           <Route path="/topics" element={<TopicsPage />} />
           <Route path="/services" element={<ServicesPage />} />
+          <Route path="/publish" element={<PublisherPage />} />
+          <Route path="/actions" element={<ActionsPage />} />
+          <Route path="/types" element={<MsgTypesPage />} />
           <Route path="/params" element={<ParamsPage />} />
           <Route path="/logs" element={<LogsPage />} />
           <Route path="/tf" element={<TFPage />} />
@@ -149,10 +174,16 @@ function AppContent() {
           <Route path="/node-graph" element={<NodeGraphPage />} />
           <Route path="/control" element={<ControlPage />} />
           <Route path="/bag" element={<BagPage />} />
+          <Route path="/top" element={<TopPage />} />
+          <Route path="/shell" element={<ShellPage />} />
+          <Route path="/pyconsole" element={<PyConsolePage />} />
           <Route path="/map" element={<MapViewerPage />} />
           <Route path="/pointcloud" element={<PointCloudPage />} />
           <Route path="/laserscan" element={<LaserScanPage />} />
           <Route path="/tf-diagnostics" element={<TFDiagnosticsPage />} />
+          <Route path="/robot-monitor" element={<RobotMonitorPage />} />
+          <Route path="/jtc" element={<JtcPage />} />
+          <Route path="/robot-dashboard" element={<RobotDashboardPage />} />
           <Route path="/trace" element={<TracePage />} />
           <Route path="/latency" element={<LatencyPage />} />
           <Route path="/bottleneck" element={<BottleneckPage />} />
