@@ -16,17 +16,23 @@ RUN cd backend && npm install --production
 
 COPY backend/ ./backend/
 
-# 生产镜像
-FROM node:18-alpine
+# 生产镜像：基于 ROS 2 Humble，后端可在容器内执行 ros2 CLI
+FROM ros:humble-ros-base
 
 WORKDIR /app
+
+# 安装 Node.js 18
+RUN apt-get update && apt-get install -y curl ca-certificates && \
+    curl -fsSL https://deb.nodesource.com/setup_18.x | bash - && \
+    apt-get install -y nodejs && \
+    rm -rf /var/lib/apt/lists/*
 
 # 复制构建产物
 COPY --from=builder /app/backend ./backend
 COPY --from=builder /app/frontend/dist ./frontend/dist
 
 # 安全：非 root 用户运行
-RUN addgroup -S appgroup && adduser -S appuser -G appgroup && chown -R appuser:appgroup /app
+RUN groupadd -r appgroup && useradd -r -g appgroup appuser && chown -R appuser:appgroup /app
 USER appuser
 
 WORKDIR /app/backend
