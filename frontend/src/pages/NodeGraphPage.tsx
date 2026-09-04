@@ -57,8 +57,9 @@ export default function NodeGraphPage() {
       nodeNames.forEach(nodeName => {
         const getDetails = new ROSLIB.Service({ ros, name: '/rosapi/node_details', serviceType: 'rosapi/NodeDetails' })
         getDetails.callService(new ROSLIB.ServiceRequest({ node: nodeName }), (res: any) => {
-          const pubs: string[] = res.publications || []
-          const subs: string[] = res.subscriptions || []
+          // rosapi 2.7+ 字段为 publishing/subscribing，旧版为 publications/subscriptions
+          const pubs: string[] = res.publishing ?? res.publications ?? []
+          const subs: string[] = res.subscribing ?? res.subscriptions ?? []
           const node = graphNodes.find(n => n.id === nodeName)
           if (node) { node.pubs = pubs; node.subs = subs }
           pubs.forEach((topic: string) => {
@@ -249,6 +250,12 @@ export default function NodeGraphPage() {
           <button onClick={() => setZoom(z => Math.max(0.3, z - 0.1))} className="px-3 py-2 bg-gray-200 rounded text-sm">-</button>
           <span className="px-2 py-2 text-sm">{Math.round(zoom * 100)}%</span>
           <button onClick={() => setZoom(z => Math.min(2, z + 0.1))} className="px-3 py-2 bg-gray-200 rounded text-sm">+</button>
+          <button onClick={() => {
+            const maxR = Math.max(...visibleNodes.map(n => n.x + (n.type === 'node' ? 140 : 110)), 800)
+            const maxB = Math.max(...visibleNodes.map(n => n.y + 40), 600)
+            setZoom(Math.max(0.2, Math.min(1, 900 / maxR, 560 / maxB)))
+            setPan({ x: 0, y: 0 })
+          }} className="px-3 py-2 bg-gray-200 rounded text-sm">适配</button>
           <button onClick={fetchGraph} className="px-4 py-2 bg-blue-600 text-white rounded text-sm">刷新</button>
           <button onClick={exportDot} className="px-3 py-2 bg-gray-100 rounded text-sm">导出 dot</button>
           <button onClick={exportPng} className="px-3 py-2 bg-gray-100 rounded text-sm">导出 PNG</button>
@@ -271,8 +278,9 @@ export default function NodeGraphPage() {
               const to = visibleNodes.find(n => n.id === edge.to)
               if (!from || !to) return null
               const highlighted = selectedId && (edge.from === selectedId || edge.to === selectedId)
-              return <line key={i} x1={from.x + 60} y1={from.y + 15} x2={to.x} y2={to.y + 15}
-                stroke={highlighted ? '#2563eb' : '#94a3b8'} strokeWidth={highlighted ? 2.5 : 1} markerEnd="url(#arrowhead)" />
+              const x1 = from.x + 60, y1 = from.y + 15, x2 = to.x, y2 = to.y + 15
+              const mid = (x1 + x2) / 2
+              return <path key={i} d={`M ${x1} ${y1} C ${mid} ${y1}, ${mid} ${y2}, ${x2} ${y2}`} fill="none" stroke={highlighted ? '#2563eb' : '#94a3b8'} strokeWidth={highlighted ? 2.5 : 1.2} markerEnd="url(#arrowhead)" />
             })}
             {visibleNodes.map(node => {
               const isSelected = selectedId === node.id
