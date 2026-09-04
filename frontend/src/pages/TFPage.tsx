@@ -4,6 +4,7 @@
  */
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react'
 import { useTFSubscription, useTfPrefix, setTfPrefix } from '../hooks/useTFTopics'
+import TFGraphView from '../components/TFGraphView'
 
 interface TFEdge { parent: string; child: string }
 interface TFTransform {
@@ -21,7 +22,7 @@ export default function TFPage() {
   const [search, setSearch] = useState('')
   const [view, setView] = useState<'tree' | 'graph' | 'yaml'>('tree')
   const [selectedFrame, setSelectedFrame] = useState<string | null>(null)
-  const svgRef = useRef<SVGSVGElement>(null)
+  const svgRef = useRef<SVGSVGElement>(null!)
 
   // 高频 TF 数据先写 refs，1Hz 批量刷入 state，避免整树高频重渲染导致点击失效
   const edgesSetRef = useRef<Set<string>>(new Set())
@@ -88,25 +89,6 @@ export default function TFPage() {
 
   const { roots, childrenMap, frames } = useMemo(() => buildTree(), [buildTree])
 
-  const graphPositions = useCallback(() => {
-    const levelMap = new Map<string, number>()
-    const setLevel = (frame: string, lvl: number) => {
-      if ((levelMap.get(frame) || 0) >= lvl) return
-      levelMap.set(frame, lvl)
-      ;(childrenMap[frame] || []).forEach(c => setLevel(c, lvl + 1))
-    }
-    roots.forEach(r => setLevel(r, 0))
-    const byLevel: Record<number, string[]> = {}
-    levelMap.forEach((lvl, f) => { byLevel[lvl] = byLevel[lvl] || []; byLevel[lvl].push(f) })
-    const pos = new Map<string, { x: number; y: number }>()
-    Object.entries(byLevel).forEach(([lvl, list]) => {
-      const count = list.length
-      const width = 600
-      list.forEach((f, i) => pos.set(f, { x: (i + 1) * width / (count + 1), y: Number(lvl) * 70 + 40 }))
-    })
-    return pos
-  }, [childrenMap, roots])
-
   const TFNodeView = ({ frame, depth = 0 }: { frame: string; depth: number }) => {
     const children = childrenMap[frame] || []
     const isExpanded = expanded.has(frame)
@@ -165,9 +147,6 @@ export default function TFPage() {
     img.src = url
   }
 
-  const pos = graphPositions()
-  const graphEdges = edges.map(e => ({ from: pos.get(e.parent), to: pos.get(e.child), parent: e.parent, child: e.child })).filter(e => e.from && e.to)
-
   const selectedTransform = selectedFrame ? transforms.get([...transforms.entries()].find(([, tr]) => tr.child === selectedFrame)?.[0] || '') : null
 
   return (
@@ -211,18 +190,8 @@ export default function TFPage() {
             </pre>
           )}
           {view === 'graph' && (
-            <svg ref={svgRef} width="100%" height={500}>
-              {graphEdges.map((e, i) => (
-                <line key={i} x1={e.from!.x} y1={e.from!.y + 15} x2={e.to!.x} y2={e.to!.y} stroke="#94a3b8" strokeWidth={1} markerEnd="url(#tfarrow)" />
-              ))}
-              {Array.from(pos.entries()).map(([frame, p]) => (
-                <g key={frame} className="cursor-pointer" onClick={() => setSelectedFrame(frame)}>
-                  <rect x={p.x - 50} y={p.y} width={100} height={30} rx={4} fill={selectedFrame === frame ? '#3b82f6' : '#60a5fa'} />
-                  <text x={p.x} y={p.y + 19} textAnchor="middle" fontSize={10} fill="white">{frame}</text>
-                </g>
-              ))}
-              <defs><marker id="tfarrow" markerWidth="6" markerHeight="4" refX="6" refY="2" orient="auto"><polygon points="0 0, 6 2, 0 4" fill="#94a3b8" /></marker></defs>
-            </svg>
+            <TFGraphView roots={roots} childrenMap={childrenMap} selectedFrame={selectedFrame}
+              onSelect={setSelectedFrame} svgRef={svgRef} />
           )}
         </div>
       )}
