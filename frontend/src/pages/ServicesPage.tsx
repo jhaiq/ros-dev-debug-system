@@ -1,6 +1,9 @@
 import { useState, useEffect } from 'react'
 import { useROS } from '../hooks/useROS'
 import ROSLIB from 'roslib'
+import MessageFieldEditor from '../components/MessageFieldEditor'
+import { buildTypeDefRegistry, resolveFieldTree, defaultMessageObject, type FieldNode } from '../lib/message-def'
+import { rosapi } from '../lib/rosapi'
 
 interface ServiceInfo {
   name: string
@@ -11,8 +14,12 @@ export default function ServicesPage() {
   const { ros, connected, cache, setCache } = useROS()
   const [services, setServices] = useState<ServiceInfo[]>(() => cache.services.length > 0 ? cache.services : [])
   const [search, setSearch] = useState('')
-  const [selectedService, setSelectedService] = useState<string | null>(null)
+  const [selectedService, setSelectedService] = useState<ServiceInfo | null>(null)
+  const [mode, setMode] = useState<'form' | 'json'>('form')
+  const [reqTree, setReqTree] = useState<FieldNode[]>([])
+  const [formValue, setFormValue] = useState<Record<string, any>>({})
   const [requestText, setRequestText] = useState('{}')
+  const [defError, setDefError] = useState<string | null>(null)
   const [response, setResponse] = useState<any>(null)
   const [loading, setLoading] = useState(false)
 
@@ -31,15 +38,52 @@ export default function ServicesPage() {
     })
   }
 
+  /** 选中服务：加载 srv 请求定义生成结构化表单（rqt_service_caller 行为） */
+  const selectService = async (svc: ServiceInfo) => {
+    setSelectedService(svc)
+    setResponse(null)
+    setDefError(null)
+    setReqTree([])
+    setFormValue({})
+    setRequestText('{}')
+    if (!ros || !connected || !svc.type || svc.type === 'unknown') { setMode('json'); return }
+    try {
+      const typedefs = await rosapi.serviceRequestDetails(ros, svc.type)
+      if (!typedefs.length) throw new Error('无法获取请求定义')
+      const tree = resolveFieldTree(typedefs[0].type, buildTypeDefRegistry(typedefs))
+      const defaults = defaultMessageObject(tree)
+      setReqTree(tree)
+      setFormValue(defaults)
+      setRequestText(JSON.stringify(defaults, null, 2))
+      setMode('form')
+    } catch (e: any) {
+      setDefError(`结构化编辑器不可用（${e.message}），已切换为 JSON 模式`)
+      setMode('json')
+    }
+  }
+
+  const switchMode = (m: 'form' | 'json') => {
+    if (m === mode) return
+    if (m === 'json') {
+      setRequestText(JSON.stringify(formValue, null, 2))
+    } else {
+      try {
+        setFormValue(JSON.parse(requestText))
+      } catch (e: any) {
+        alert('JSON 格式错误：' + e.message)
+        return
+      }
+    }
+    setMode(m)
+  }
+
   const callService = () => {
     if (!ros || !connected || !selectedService) return
-    const svc = services.find(s => s.name === selectedService)
-    if (!svc) return
     setLoading(true)
     try {
-      const service = new ROSLIB.Service({ ros, name: selectedService, serviceType: svc.type })
-      const request = new ROSLIB.ServiceRequest(JSON.parse(requestText))
-      service.callService(request, (result: any) => {
+      const request = mode === 'form' ? formValue : JSON.parse(requestText)
+      const service = new ROSLIB.Service({ ros, name: selectedService.name, serviceType: selectedService.type })
+      service.callService(new ROSLIB.ServiceRequest(request), (result: any) => {
         setResponse(result)
         setLoading(false)
       })
@@ -70,8 +114,8 @@ export default function ServicesPage() {
           </div>
           <div className="overflow-y-auto max-h-[600px]">
             {filtered.map(svc => (
-              <div key={svc.name} className={`p-3 border-b cursor-pointer hover:bg-gray-50 ${selectedService === svc.name ? 'bg-blue-50' : ''}`}
-                onClick={() => { setSelectedService(svc.name); setResponse(null); setRequestText('{}') }}>
+              <div key={svc.name} className={`p-3 border-b cursor-pointer hover:bg-gray-50 ${selectedService?.name === svc.name ? 'bg-blue-50' : ''}`}
+                onClick={() => selectService(svc)}>
                 <div className="font-medium text-sm truncate">{svc.name}</div>
                 <div className="text-xs text-gray-500">{svc.type}</div>
               </div>
@@ -80,9 +124,27 @@ export default function ServicesPage() {
         </div>
         <div className="lg:col-span-2 space-y-4">
           <div className="bg-white rounded-lg shadow p-4">
-            <h2 className="font-semibold mb-3">{selectedService || '选择一个服务'}</h2>
-            <label className="block text-sm font-medium mb-2">请求参数 (JSON)</label>
-            <textarea value={requestText} onChange={e => setRequestText(e.target.value)} className="w-full p-3 border rounded font-mono text-sm h-32" placeholder='{}' />
+            <div className="flex justify-between items-center mb-3 flex-wrap gap-2">
+              <h2 className="font-semibold font-mono text-sm">{selectedService ? `${selectedService.name} — ${selectedService.type}` : '选择一个服务'}</h2>
+              {reqTree.length > 0 && (
+                <div className="flex border rounded overflow-hidden">
+                  <button onClick={() => switchMode('form')} className={`px-3 py-1 text-sm ${mode === 'form' ? 'bg-blue-600 text-white' : 'bg-white hover:bg-gray-50'}`}>表单</button>
+                  <button onClick={() => switchMode('json')} className={`px-3 py-1 text-sm ${mode === 'json' ? 'bg-blue-600 text-white' : 'bg-white hover:bg-gray-50'}`}>JSON</button>
+                </div>
+              )}
+            </div>
+            {defError && <div className="text-xs text-amber-600 mb-2">{defError}</div>}
+            {selectedService && mode === 'form' && reqTree.length > 0 && (
+              <div className="border rounded p-3 max-h-[360px] overflow-auto mb-3">
+                <MessageFieldEditor tree={reqTree} value={formValue} onChange={setFormValue} />
+              </div>
+            )}
+            {(mode === 'json' || reqTree.length === 0) && (
+              <>
+                <label className="block text-sm font-medium mb-2">请求参数 (JSON)</label>
+                <textarea value={requestText} onChange={e => setRequestText(e.target.value)} className="w-full p-3 border rounded font-mono text-sm h-32" placeholder='{}' />
+              </>
+            )}
             <button onClick={callService} disabled={!selectedService || loading} className="mt-2 px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 disabled:bg-gray-400">
               {loading ? '调用中...' : '调用服务'}
             </button>
