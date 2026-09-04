@@ -46,23 +46,33 @@
 |------|------|------|
 | 机器人状态 | `/` | Phase 1 |
 | 仪表盘 | `/dashboard` | Phase 2 |
+| **工作台（可停靠+透视）** | `/workspace` | **rqt_gui** |
 | 节点管理 | `/nodes` | Phase 1 |
 | 话题监控 | `/topics` | Phase 1 |
 | 服务调用 | `/services` | Phase 1 |
+| 消息发布器 | `/publish` | **rqt_publisher** |
+| Action 客户端 | `/actions` | **rqt_action** |
+| 类型浏览器 | `/types` | **rqt_msg/rqt_srv** |
 | 参数服务器 | `/params` | Phase 1 |
 | TF 列表 | `/tf` | Phase 1 |
 | 日志系统 | `/logs` | Phase 1 |
+| 诊断监视器 | `/robot-monitor` | **rqt_robot_monitor** |
+| **关节轨迹控制** | `/jtc` | **rqt_joint_trajectory_controller** |
+| **机器人仪表盘** | `/robot-dashboard` | **rqt_robot_dashboard** |
 | 连接设置 | `/settings` | Phase 1 |
 | 实时图表 | `/charts` | Phase 2 |
 | 图像话题 | `/images` | Phase 2 |
 | TF 3D | `/tf3d` | Phase 2 |
 | 节点图 | `/node-graph` | Phase 2 |
 | 机器人控制 | `/control` | Phase 3 |
-| Bag 管理 | `/bag` | Phase 3 |
+| Bag 管理 | `/bag` | Phase 3（rqt_bag 真实现） |
 | 地图 | `/map` | Phase 4 |
 | 点云 | `/pointcloud` | Phase 4 |
 | 激光雷达 | `/laserscan` | Phase 4 |
 | TF 诊断 | `/tf-diagnostics` | Phase 4 |
+| **节点资源** | `/top` | **rqt_top** |
+| **远程终端** | `/shell` | **rqt_shell** |
+| **Python 控制台** | `/pyconsole` | **rqt_py_console** |
 | **调用链** | `/trace` | **Phase 5** |
 | **延迟监控** | `/latency` | **Phase 5** |
 | **瓶颈检测** | `/bottleneck` | **Phase 5** |
