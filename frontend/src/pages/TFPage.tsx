@@ -2,8 +2,7 @@
  * rqt_tf_tree 复刻增强 — TF 树
  * 支持：树形视图、图形视图、frames.yaml 文本视图、刷新间隔、导出 PNG / 文本。
  */
-import { useState, useEffect, useCallback, useRef } from 'react'
-import { useROS } from '../hooks/useROS'
+import { useState, useEffect, useMemo, useCallback, useRef } from 'react'
 import { useTFSubscription, useTfPrefix, setTfPrefix } from '../hooks/useTFTopics'
 
 interface TFEdge { parent: string; child: string }
@@ -16,15 +15,18 @@ interface TFTransform {
 }
 
 export default function TFPage() {
-  const { connected } = useROS()
   const [edges, setEdges] = useState<TFEdge[]>([])
   const [transforms, setTransforms] = useState<Map<string, TFTransform>>(new Map())
   const [expanded, setExpanded] = useState<Set<string>>(new Set())
   const [search, setSearch] = useState('')
   const [view, setView] = useState<'tree' | 'graph' | 'yaml'>('tree')
-  const [intervalSec, setIntervalSec] = useState(1)
   const [selectedFrame, setSelectedFrame] = useState<string | null>(null)
   const svgRef = useRef<SVGSVGElement>(null)
+
+  // 高频 TF 数据先写 refs，1Hz 批量刷入 state，避免整树高频重渲染导致点击失效
+  const edgesSetRef = useRef<Set<string>>(new Set())
+  const transformsRef = useRef<Map<string, TFTransform>>(new Map())
+  const transformsDirtyRef = useRef(false)
 
   // 订阅 TF（useTFSubscription 自动兼容 /tf 与命名空间 /robot1/tf）
   const handleTF = useCallback((msg: any) => {
@@ -41,28 +43,33 @@ export default function TFPage() {
           rotation: t.transform?.rotation || { x: 0, y: 0, z: 0, w: 1 },
           stamp: (t.header.stamp?.sec || 0) + (t.header.stamp?.nanosec || 0) / 1e9,
         }
-        setTransforms(prev => { const n = new Map(prev); n.set(key, tr); return n })
+        transformsRef.current.set(key, tr)
+        transformsDirtyRef.current = true
+        if (!edgesSetRef.current.has(key)) {
+          edgesSetRef.current.add(key)
+          newEdges.push({ parent, child })
+        }
       })
-      setEdges(prev => {
-        const merged = [...prev, ...newEdges]
-        const seen = new Set<string>()
-        return merged.filter(e => { const key = `${e.parent}/${e.child}`; if (seen.has(key)) return false; seen.add(key); return true })
-      })
+      if (newEdges.length > 0) {
+        setEdges(prev => [...prev, ...newEdges.filter(e => !prev.some(p => `${p.parent}/${p.child}` === `${e.parent}/${e.child}`))])
+      }
   }, [])
   useTFSubscription(handleTF, 500)
 
-  const prefix = useTfPrefix()
-  const [prefixInput, setPrefixInput] = useState(prefix)
-  const resetTF = useCallback(() => {
-    setEdges([]); setTransforms(new Map())
+  // 1Hz 批量刷新变换数据（仅在有新数据时触发重渲染）
+  useEffect(() => {
+    const timer = setInterval(() => {
+      if (transformsDirtyRef.current) {
+        transformsDirtyRef.current = false
+        setTransforms(new Map(transformsRef.current))
+      }
+    }, 1000)
+    return () => clearInterval(timer)
   }, [])
 
-  // 自动刷新：清空后由常驻订阅重新累积
-  useEffect(() => {
-    if (!connected || intervalSec <= 0) return
-    const timer = setInterval(resetTF, intervalSec * 1000)
-    return () => clearInterval(timer)
-  }, [connected, intervalSec, resetTF])
+  const prefix = useTfPrefix()
+  const [prefixInput, setPrefixInput] = useState(prefix)
+
 
   const buildTree = useCallback(() => {
     const childrenMap: Record<string, string[]> = {}
@@ -79,7 +86,7 @@ export default function TFPage() {
     return { roots, childrenMap, frames }
   }, [edges])
 
-  const { roots, childrenMap, frames } = buildTree()
+  const { roots, childrenMap, frames } = useMemo(() => buildTree(), [buildTree])
 
   const graphPositions = useCallback(() => {
     const levelMap = new Map<string, number>()
@@ -172,12 +179,6 @@ export default function TFPage() {
             placeholder="TF 前缀，如 /robot1" className="border rounded px-2 py-1 text-sm font-mono w-44" />
           <button onClick={() => setTfPrefix(prefixInput)}
             className="px-2 py-1 bg-gray-100 rounded text-sm hover:bg-gray-200">应用前缀</button>
-          <select value={intervalSec} onChange={e => setIntervalSec(Number(e.target.value))} className="border rounded px-2 py-1 text-sm">
-            <option value={0}>手动刷新</option>
-            <option value={1}>1s 刷新</option>
-            <option value={5}>5s 刷新</option>
-            <option value={10}>10s 刷新</option>
-          </select>
           <div className="flex border rounded overflow-hidden">
             <button onClick={() => setView('tree')} className={`px-3 py-1 text-sm ${view === 'tree' ? 'bg-blue-600 text-white' : 'bg-white hover:bg-gray-50'}`}>树形</button>
             <button onClick={() => setView('graph')} className={`px-3 py-1 text-sm ${view === 'graph' ? 'bg-blue-600 text-white' : 'bg-white hover:bg-gray-50'}`}>图形</button>
