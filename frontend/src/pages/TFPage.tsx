@@ -4,7 +4,7 @@
  */
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { useROS } from '../hooks/useROS'
-import ROSLIB from 'roslib'
+import { useTFSubscription, useTfPrefix, setTfPrefix } from '../hooks/useTFTopics'
 
 interface TFEdge { parent: string; child: string }
 interface TFTransform {
@@ -16,7 +16,7 @@ interface TFTransform {
 }
 
 export default function TFPage() {
-  const { ros, connected } = useROS()
+  const { connected } = useROS()
   const [edges, setEdges] = useState<TFEdge[]>([])
   const [transforms, setTransforms] = useState<Map<string, TFTransform>>(new Map())
   const [expanded, setExpanded] = useState<Set<string>>(new Set())
@@ -26,14 +26,9 @@ export default function TFPage() {
   const [selectedFrame, setSelectedFrame] = useState<string | null>(null)
   const svgRef = useRef<SVGSVGElement>(null)
 
-  const fetchTF = useCallback(() => {
-    if (!ros || !connected) return
-    setEdges([]); setTransforms(new Map())
-    const tfTopic = new ROSLIB.Topic({ ros, name: '/tf', messageType: 'tf2_msgs/TFMessage', throttle_rate: 500 })
-    const tfStatic = new ROSLIB.Topic({ ros, name: '/tf_static', messageType: 'tf2_msgs/TFMessage', throttle_rate: 500 })
-
-    const handleTF = (msg: any) => {
-      if (!msg.transforms) return
+  // 订阅 TF（useTFSubscription 自动兼容 /tf 与命名空间 /robot1/tf）
+  const handleTF = useCallback((msg: any) => {
+    if (!msg.transforms) return
       const newEdges: TFEdge[] = []
       msg.transforms.forEach((t: any) => {
         const parent = t.header.frame_id
@@ -53,25 +48,21 @@ export default function TFPage() {
         const seen = new Set<string>()
         return merged.filter(e => { const key = `${e.parent}/${e.child}`; if (seen.has(key)) return false; seen.add(key); return true })
       })
-    }
+  }, [])
+  useTFSubscription(handleTF, 500)
 
-    tfTopic.subscribe(handleTF)
-    tfStatic.subscribe(handleTF)
-    return () => { try { tfTopic.unsubscribe() } catch {}; try { tfStatic.unsubscribe() } catch {} }
-  }, [ros, connected])
+  const prefix = useTfPrefix()
+  const [prefixInput, setPrefixInput] = useState(prefix)
+  const resetTF = useCallback(() => {
+    setEdges([]); setTransforms(new Map())
+  }, [])
 
-  useEffect(() => {
-    if (!connected) return
-    const cleanup = fetchTF()
-    return () => { if (cleanup) cleanup() }
-  }, [connected, fetchTF])
-
-  // 自动刷新：fetchTF 内部会先清理旧订阅再重新订阅
+  // 自动刷新：清空后由常驻订阅重新累积
   useEffect(() => {
     if (!connected || intervalSec <= 0) return
-    const timer = setInterval(fetchTF, intervalSec * 1000)
+    const timer = setInterval(resetTF, intervalSec * 1000)
     return () => clearInterval(timer)
-  }, [connected, intervalSec, fetchTF])
+  }, [connected, intervalSec, resetTF])
 
   const buildTree = useCallback(() => {
     const childrenMap: Record<string, string[]> = {}
@@ -177,6 +168,10 @@ export default function TFPage() {
       <div className="flex justify-between items-center mb-4">
         <h1 className="text-2xl font-bold">🌳 TF 树</h1>
         <div className="flex gap-2 flex-wrap items-center">
+          <input value={prefixInput} onChange={e => setPrefixInput(e.target.value)}
+            placeholder="TF 前缀，如 /robot1" className="border rounded px-2 py-1 text-sm font-mono w-44" />
+          <button onClick={() => setTfPrefix(prefixInput)}
+            className="px-2 py-1 bg-gray-100 rounded text-sm hover:bg-gray-200">应用前缀</button>
           <select value={intervalSec} onChange={e => setIntervalSec(Number(e.target.value))} className="border rounded px-2 py-1 text-sm">
             <option value={0}>手动刷新</option>
             <option value={1}>1s 刷新</option>

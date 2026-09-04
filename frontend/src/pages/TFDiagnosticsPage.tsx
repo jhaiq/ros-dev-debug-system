@@ -1,6 +1,5 @@
 import { useState, useEffect, useCallback } from 'react'
-import { useROS } from '../hooks/useROS'
-import ROSLIB from 'roslib'
+import { useTFSubscription } from '../hooks/useTFTopics'
 
 interface Diagnostic {
   rule: string
@@ -16,18 +15,11 @@ interface FrameInfo {
 }
 
 export default function TFDiagnosticsPage() {
-  const { ros, connected } = useROS()
   const [frames, setFrames] = useState<FrameInfo[]>([])
   const [diagnostics, setDiagnostics] = useState<Diagnostic[]>([])
   const [search, setSearch] = useState('')
 
-  const fetchTF = useCallback(() => {
-    if (!ros || !connected) return
-
-    const tfTopic = new ROSLIB.Topic({ ros, name: '/tf', messageType: 'tf2_msgs/TFMessage', throttle_rate: 500 })
-    const tfStatic = new ROSLIB.Topic({ ros, name: '/tf_static', messageType: 'tf2_msgs/TFMessage', throttle_rate: 500 })
-
-    const handleTF = (msg: any) => {
+  const handleTF = useCallback((msg: any) => {
       if (!msg.transforms) return
       const frameMap = new Map<string, FrameInfo>()
       const transforms = msg.transforms
@@ -59,19 +51,9 @@ export default function TFDiagnosticsPage() {
 
       frameMap.forEach(f => { f.depth = calcDepth(f.name) })
       setFrames([...frameMap.values()])
-    }
-
-    tfTopic.subscribe(handleTF)
-    tfStatic.subscribe(handleTF)
-    return () => { tfTopic.unsubscribe(); tfStatic.unsubscribe() }
-  }, [ros, connected])
-
-  useEffect(() => {
-    if (connected) {
-      const cleanup = fetchTF()
-      return cleanup
-    }
-  }, [connected, fetchTF])
+  }, [])
+  // 订阅 TF（自动兼容 /tf 与命名空间 /robot1/tf）
+  useTFSubscription(handleTF, 500)
 
   // Run diagnostics
   useEffect(() => {

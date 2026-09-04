@@ -1,6 +1,5 @@
-import { useState, useEffect, useCallback } from 'react'
-import { useROS } from '../hooks/useROS'
-import ROSLIB from 'roslib'
+import { useState, useCallback } from 'react'
+import { useTFSubscription } from '../hooks/useTFTopics'
 import { Canvas } from '@react-three/fiber'
 import { OrbitControls, Text } from '@react-three/drei'
 
@@ -28,16 +27,12 @@ function CoordinateFrame({ position, label, color = 'white' }: { position: [numb
 }
 
 export default function TF3DPage() {
-  const { ros, connected } = useROS()
   const [transforms, setTransforms] = useState<Transform[]>([])
   const [frames, setFrames] = useState<string[]>([])
   const [selectedFrame, setSelectedFrame] = useState<string | null>(null)
 
-  const fetchTF = useCallback(() => {
-    if (!ros || !connected) return
-
-    const tfTopic = new ROSLIB.Topic({ ros, name: '/tf', messageType: 'tf2_msgs/TFMessage', throttle_rate: 200 })
-    tfTopic.subscribe((msg: any) => {
+  const handleMsg = useCallback((msg: any) => {
+    {
       if (msg.transforms) {
         const newTransforms: Transform[] = msg.transforms.map((t: any) => ({
           parent: t.header.frame_id,
@@ -51,17 +46,10 @@ export default function TF3DPage() {
         newTransforms.forEach(t => { allFrames.add(t.parent); allFrames.add(t.child) })
         setFrames([...allFrames])
       }
-    })
-
-    return () => tfTopic.unsubscribe()
-  }, [ros, connected])
-
-  useEffect(() => {
-    if (connected) {
-      const cleanup = fetchTF()
-      return cleanup
     }
-  }, [connected, fetchTF])
+  }, [])
+  // 订阅 TF（自动兼容 /tf 与命名空间 /robot1/tf）
+  useTFSubscription(handleMsg, 200)
 
   // Build position map: accumulate transforms from root
   const getPositions = (): Record<string, [number, number, number]> => {

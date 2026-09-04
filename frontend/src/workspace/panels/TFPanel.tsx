@@ -1,22 +1,16 @@
 /**
  * 工作台紧凑面板 — TF 树
  */
-import { useState, useEffect } from 'react'
-import { useROS } from '../../hooks/useROS'
-import ROSLIB from 'roslib'
+import { useState, useCallback } from 'react'
+import { useTFSubscription } from '../../hooks/useTFTopics'
 
 interface TFEdge { parent: string; child: string }
 
 export default function TFPanel() {
-  const { ros, connected } = useROS()
   const [edges, setEdges] = useState<TFEdge[]>([])
   const [expanded, setExpanded] = useState<Set<string>>(new Set())
 
-  useEffect(() => {
-    if (!ros || !connected) return
-    const tf = new ROSLIB.Topic({ ros, name: '/tf', messageType: 'tf2_msgs/TFMessage', throttle_rate: 500 })
-    const tfs = new ROSLIB.Topic({ ros, name: '/tf_static', messageType: 'tf2_msgs/TFMessage', throttle_rate: 500 })
-    const handler = (msg: any) => {
+  const handler = useCallback((msg: any) => {
       if (!msg.transforms) return
       const newEdges: TFEdge[] = msg.transforms.map((t: any) => ({ parent: t.header.frame_id, child: t.child_frame_id }))
       setEdges(prev => {
@@ -24,10 +18,8 @@ export default function TFPanel() {
         const seen = new Set<string>()
         return merged.filter(e => { const k = `${e.parent}/${e.child}`; if (seen.has(k)) return false; seen.add(k); return true })
       })
-    }
-    tf.subscribe(handler); tfs.subscribe(handler)
-    return () => { try { tf.unsubscribe() } catch {}; try { tfs.unsubscribe() } catch {} }
-  }, [ros, connected])
+  }, [])
+  useTFSubscription(handler, 500)
 
   const childrenMap: Record<string, string[]> = {}
   const parents = new Set<string>(), children = new Set<string>()
